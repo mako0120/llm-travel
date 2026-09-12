@@ -56,13 +56,22 @@ class RepositoryTests(unittest.TestCase):
         metadata = {"region": "Kyoto", "transport": "walk", "people": 2}
         self.assertEqual(rule["status"], "pending")
         self.assertEqual(self.repo.find_rules(metadata), [])
-        approved = self.repo.approve_rule(rule["id"])
+        approved = self.repo.approve_rule(rule["id"], "operator-1")
+        self.assertEqual(approved["approved_by"], "operator-1")
         self.assertEqual(self.repo.find_rules(metadata), [approved])
         self.assertEqual(self.repo.find_rules({"region": "Kyoto"}), [])
         self.assertEqual(self.repo.find_rules(dict(metadata, transport="car")), [])
-        self.assertEqual(self.repo.approve_rule(rule["id"]), approved)
+        self.assertEqual(self.repo.approve_rule(rule["id"], "operator-2"), approved)
         with self.assertRaises(ValueError):
-            self.repo.approve_rule("missing")
+            self.repo.approve_rule("missing", "operator-1")
+
+    def test_approval_requires_explicit_operator(self):
+        plan = self.repo.create_plan({})
+        feedback = self.repo.add_feedback(plan["id"], 1, {"score": 4}, "Need a break")
+        rule = self.repo.propose_rule_from_comments({"region": "Kyoto"}, "rushed", "Add break", [feedback["id"]])
+        for operator in (None, "", "   ", 0, False):
+            with self.assertRaises(ValueError):
+                self.repo.approve_rule(rule["id"], operator)
 
     def test_empty_condition_and_missing_evidence_rejected(self):
         for condition, evidence in [({}, {"evidence_type": "qualitative_comment_only", "feedback_ids": ["feedback-1"]}), ({"region": "Kyoto"}, {"evidence_type": "qualitative_comment_only", "feedback_ids": []})]:
@@ -80,7 +89,7 @@ class RepositoryTests(unittest.TestCase):
                 lambda: self.repo.create_plan({"id": identifier}),
                 lambda: self.repo.get_plan(identifier),
                 lambda: self.repo.list_feedback(identifier),
-                lambda: self.repo.approve_rule(identifier),
+                lambda: self.repo.approve_rule(identifier, "operator-1"),
                 lambda: self.repo.add_feedback(identifier, 1, {"score": 4}, ""),
             ]
             for index, operation in enumerate(operations):
@@ -92,10 +101,28 @@ class RepositoryTests(unittest.TestCase):
         plan = self.repo.create_plan({})
         feedback = self.repo.add_feedback(plan["id"], 1, {"score": 4}, "Need a longer rest")
         rule = self.repo.propose_rule_from_comments(condition, "rushed", "More time", [feedback["id"]])
-        approved = self.repo.approve_rule(rule["id"])
+        approved = self.repo.approve_rule(rule["id"], "operator-1")
         self.assertEqual(self.repo.find_rules(condition), [approved])
         self.assertEqual(self.repo.find_rules({"party": {"children": [True], "accessible": True}}), [])
         self.assertEqual(self.repo.find_rules({"party": {"children": [1], "accessible": 1}}), [])
+
+    def test_threshold_conditions_reuse_compliant_qualitative_rules(self):
+        plan = self.repo.create_plan({})
+        feedback = self.repo.add_feedback(plan["id"], 1, {"score": 3}, "Long drives were tiring")
+        rule = self.repo.propose_rule_from_comments(
+            {"participants": {"op": "gte", "value": 10}, "drive_hours": {"op": "gte", "value": 2}},
+            "driver fatigue", "Add a second driver", [feedback["id"]],
+        )
+        approved = self.repo.approve_rule(rule["id"], "operator-1")
+        self.assertEqual(self.repo.find_rules({"participants": 10, "drive_hours": 2}), [approved])
+        self.assertEqual(self.repo.find_rules({"participants": 9, "drive_hours": 2}), [])
+
+    def test_invalid_threshold_condition_is_rejected(self):
+        plan = self.repo.create_plan({})
+        feedback = self.repo.add_feedback(plan["id"], 1, {"score": 3}, "Long drives were tiring")
+        for condition in ({"participants": {"op": "unknown", "value": 10}}, {"participants": {"op": "gte", "value": True}}):
+            with self.assertRaises(ValueError):
+                self.repo.propose_rule_from_comments(condition, "fatigue", "Add break", [feedback["id"]])
 
     def test_rule_rejects_ratings_only_or_empty_qualitative_evidence(self):
         plan = self.repo.create_plan({})

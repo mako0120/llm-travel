@@ -102,7 +102,7 @@ def render_model_route(rows, cost_totals):
     for row in rows:
         if not isinstance(row, dict):
             raise ValueError("each route row must be an object")
-        value = lambda key: str(row.get(key, "未確認"))
+        value = lambda key: "未確認" if row.get(key) is None else str(row.get(key))
         confidence = row.get("confidence", "unknown")
         if confidence not in CONFIDENCE_LEVELS:
             raise ValueError("route row confidence is invalid")

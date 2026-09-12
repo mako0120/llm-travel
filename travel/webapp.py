@@ -14,11 +14,29 @@ SESSIONS = {}
 RESEARCH_RUNS = {}
 
 
+def _read_json_body(environ):
+    """Return the parsed JSON body, or None if it is missing or malformed."""
+    try:
+        size = int(environ.get("CONTENT_LENGTH") or 0)
+    except ValueError:
+        return None
+    try:
+        return json.loads(environ["wsgi.input"].read(size))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return None
+
+
+def _bad_request(start_response, message):
+    start_response("400 Bad Request", [("Content-Type", "application/json; charset=utf-8")])
+    return [json.dumps({"error": message}, ensure_ascii=False).encode("utf-8")]
+
+
 def application(environ, start_response):
     path = environ.get("PATH_INFO", "/")
     if path == "/api/planner" and environ.get("REQUEST_METHOD") == "POST":
-        size = int(environ.get("CONTENT_LENGTH") or 0)
-        data = json.loads(environ["wsgi.input"].read(size))
+        data = _read_json_body(environ)
+        if not isinstance(data, dict):
+            return _bad_request(start_response, "request body must be a JSON object")
         session_id = data.get("session_id", "local")
         session, result = next_turn(SESSIONS.get(session_id, PlannerSession()), data.get("message"))
         SESSIONS[session_id] = session
@@ -41,18 +59,26 @@ def application(environ, start_response):
         repo = Repository(os.environ.get("LLM_TRAVEL_DB", "data/travel.sqlite3"))
         try:
             if environ.get("REQUEST_METHOD") == "POST":
-                size = int(environ.get("CONTENT_LENGTH") or 0)
-                data = json.loads(environ["wsgi.input"].read(size))
+                data = _read_json_body(environ)
+                if not isinstance(data, dict) or not isinstance(data.get("body"), dict):
+                    return _bad_request(start_response, "request body must be a JSON object with a 'body' field")
                 message = repo.post_agent_message(data.get("conversation_id", "ai-001"), "human", "question", data["body"])
                 payload = {"message": message}
             else:
-                payload = {"messages": repo.read_agent_messages(query.get("conversation_id", ["ai-001"])[0], int(query.get("after", ["0"])[0]))}
+                try:
+                    after = int(query.get("after", ["0"])[0])
+                except ValueError:
+                    return _bad_request(start_response, "after must be an integer")
+                payload = {"messages": repo.read_agent_messages(query.get("conversation_id", ["ai-001"])[0], after)}
         finally:
             repo.close()
         start_response("200 OK", [("Content-Type", "application/json; charset=utf-8")])
         return [json.dumps(payload, ensure_ascii=False).encode("utf-8")]
-    target = ROOT / ("index.html" if path == "/" else path.lstrip("/"))
-    if not target.is_file() or target.suffix not in {".html", ".css", ".js"}:
+    requested = "index.html" if path == "/" else path.lstrip("/")
+    root = ROOT.resolve()
+    target = (ROOT / requested).resolve()
+    if (not target.is_relative_to(root) or not target.is_file()
+            or target.suffix not in {".html", ".css", ".js"}):
         start_response("404 Not Found", [("Content-Type", "text/plain; charset=utf-8")])
         return [b"Not found"]
     kinds = {".html": "text/html", ".css": "text/css", ".js": "application/javascript"}
