@@ -1,6 +1,6 @@
 import unittest
 
-from travel.planner import PLANNER_SYSTEM_PROMPT, PlannerSession, next_turn, planning_brief, render_model_route
+from travel.planner import PLANNER_SYSTEM_PROMPT, PlannerSession, next_turn, planning_brief, render_model_route, research_request
 
 
 class PlannerConversationTests(unittest.TestCase):
@@ -30,3 +30,9 @@ class PlannerConversationTests(unittest.TestCase):
                                     {"transport": 800, "lodging": 10000, "food": 2000, "admission": 500})
         self.assertIn("時間：09:00｜スケジュール：移動｜場所：大阪駅", output)
         self.assertIn("合計費用：13300円", output)
+
+    def test_ready_session_creates_a_data_only_generation_time_research_request(self):
+        session = PlannerSession(started=True, step=9, answers={key: "x" for key, _ in __import__("travel.planner", fromlist=["QUESTIONS"]).QUESTIONS})
+        request = research_request(session, "profile-opaque", "trace-3")
+        self.assertEqual(request["source_targets"][1]["kind"], "route_provider")
+        self.assertEqual(request["requirements"]["destination"], "x")

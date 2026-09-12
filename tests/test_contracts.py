@@ -12,6 +12,8 @@ class HandoffContractTests(unittest.TestCase):
             "ImprovementProposal": {"condition": {}, "problem": "p", "improvement": "i", "evidence": []},
             "DevelopmentIssue": {"title": "t", "objective": "o", "acceptance_criteria": []},
             "EvalResult": {"dataset_version": "v1", "cases": 1, "passed": 1, "scope": "synthetic"},
+            "ResearchRequest": {"profile_id": "profile-1", "requirements": {}, "source_targets": []},
+            "ResearchResult": {"request_id": "research-1", "state": "unconfigured", "evidence": []},
         }
         for name in REQUIRED:
             with self.subTest(name=name):

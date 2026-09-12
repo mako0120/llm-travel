@@ -12,6 +12,8 @@
     "FeedbackAnalysis": {"allOf": [{"$ref": "#/$defs/envelope"}, {"required": ["metrics", "scope"]}]},
     "ImprovementProposal": {"allOf": [{"$ref": "#/$defs/envelope"}, {"required": ["condition", "problem", "improvement", "evidence"]}]},
     "DevelopmentIssue": {"allOf": [{"$ref": "#/$defs/envelope"}, {"required": ["title", "objective", "acceptance_criteria"]}]},
-    "EvalResult": {"allOf": [{"$ref": "#/$defs/envelope"}, {"required": ["dataset_version", "cases", "passed", "scope"]}]}
+    "EvalResult": {"allOf": [{"$ref": "#/$defs/envelope"}, {"required": ["dataset_version", "cases", "passed", "scope"]}]},
+    "ResearchRequest": {"allOf": [{"$ref": "#/$defs/envelope"}, {"required": ["profile_id", "requirements", "source_targets"]}]},
+    "ResearchResult": {"allOf": [{"$ref": "#/$defs/envelope"}, {"required": ["request_id", "state", "evidence"]}]}
   }
 }

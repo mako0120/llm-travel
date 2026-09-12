@@ -71,6 +71,22 @@ def planning_brief(session):
             "unconfigured_behavior": "Do not invent ratings, timetable times, prices, routes, or availability."}
 
 
+def research_request(session, profile_id, trace_id):
+    """Create a data-only request for Claude or Codex to research at generation time."""
+    if not isinstance(profile_id, str) or not profile_id.strip() or not isinstance(trace_id, str) or not trace_id.strip():
+        raise ValueError("profile_id and trace_id must be nonempty strings")
+    brief = planning_brief(session)
+    return {"contract_version": "1.0", "trace_id": trace_id, "profile_id": profile_id,
+            "requirements": brief["requirements"],
+            "source_targets": [
+                {"kind": "official", "purpose": "opening hours, prices, reservations"},
+                {"kind": "route_provider", "purpose": "routes, stations, timetables, durations"},
+                {"kind": "Google", "purpose": "restaurant and place discovery with provenance"},
+                {"kind": "Tabelog", "purpose": "restaurant reviews and ratings with provenance"},
+                {"kind": "TikTok", "purpose": "discovery only; not authoritative for hours or prices"},
+            ]}
+
+
 def render_model_route(rows, cost_totals):
     """Format a retrieved-and-validated route. Missing facts remain 未確認."""
     if not isinstance(rows, list) or not isinstance(cost_totals, dict):

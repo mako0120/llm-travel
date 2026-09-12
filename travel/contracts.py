@@ -11,6 +11,8 @@ REQUIRED = {
     "ImprovementProposal": ("condition", "problem", "improvement", "evidence"),
     "DevelopmentIssue": ("title", "objective", "acceptance_criteria"),
     "EvalResult": ("dataset_version", "cases", "passed", "scope"),
+    "ResearchRequest": ("profile_id", "requirements", "source_targets"),
+    "ResearchResult": ("request_id", "state", "evidence"),
 }
 
 
@@ -52,4 +54,15 @@ def validate_handoff(name, document):
                 issues.append({"code": "invalid_count", "path": field, "message": "Count must be a nonnegative integer."})
         if all(type(document.get(key)) is int for key in ("cases", "passed")) and document["passed"] > document["cases"]:
             issues.append({"code": "invalid_count", "path": "passed", "message": "Passed cannot exceed cases."})
+    if name == "ResearchRequest":
+        if "profile_id" in document and (not isinstance(document["profile_id"], str) or not document["profile_id"].strip()):
+            issues.append({"code": "invalid_profile_id", "path": "profile_id", "message": "Profile ID must be an opaque nonempty string."})
+        for field in ("requirements", "source_targets"):
+            if field in document and not isinstance(document[field], (dict, list)):
+                issues.append({"code": "invalid_research_input", "path": field, "message": "Research input must be structured data."})
+    if name == "ResearchResult":
+        if document.get("state") not in ("ready", "failed", "unconfigured"):
+            issues.append({"code": "invalid_research_state", "path": "state", "message": "Research state is invalid."})
+        if "evidence" in document and not isinstance(document["evidence"], list):
+            issues.append({"code": "invalid_evidence", "path": "evidence", "message": "Evidence must be a list."})
     return issues
