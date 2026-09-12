@@ -11,8 +11,11 @@ def main():
     sub = parser.add_subparsers(dest="command", required=True)
     for name in ("validate", "save", "feedback", "propose-rule", "find-rules"):
         sub.add_parser(name).add_argument("file", type=Path)
-    for name in ("show", "analytics", "approve-rule"):
+    for name in ("show", "analytics"):
         sub.add_parser(name).add_argument("id")
+    approve_parser = sub.add_parser("approve-rule")
+    approve_parser.add_argument("id")
+    approve_parser.add_argument("approver")
     args = parser.parse_args()
     repo = None
     try:
@@ -42,7 +45,7 @@ def main():
         elif args.command == "propose-rule":
             result = repo.propose_rule(payload["condition"], payload["problem"], payload["improvement"], payload["evidence"])
         elif args.command == "approve-rule":
-            result = repo.approve_rule(args.id)
+            result = repo.approve_rule(args.id, args.approver)
         else:
             result = repo.find_rules(payload)
         print(json.dumps(result, ensure_ascii=False, indent=2))

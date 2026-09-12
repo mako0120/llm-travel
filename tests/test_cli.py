@@ -36,7 +36,7 @@ class CliTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def run_cli(self, command, payload=None, identifier=None, expected=0, raw=None):
+    def run_cli(self, command, payload=None, identifier=None, expected=0, raw=None, extra=()):
         args = [sys.executable, "-m", "travel", "--db", str(self.db), command]
         if payload is not None or raw is not None:
             path = self.folder / "input.json"
@@ -44,6 +44,7 @@ class CliTests(unittest.TestCase):
             args.append(str(path))
         if identifier is not None:
             args.append(identifier)
+        args.extend(extra)
         result = subprocess.run(args, cwd=ROOT, capture_output=True, text=True,
                                 encoding="utf-8", env=dict(os.environ, PYTHONIOENCODING="utf-8"), timeout=20)
         self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
@@ -71,8 +72,9 @@ class CliTests(unittest.TestCase):
         self.assertEqual(rule["status"], "pending")
         metadata = {"region": "Kyoto", "transport": "walk"}
         self.assertEqual(self.run_cli("find-rules", metadata), [])
-        approved = self.run_cli("approve-rule", identifier=rule["id"])
+        approved = self.run_cli("approve-rule", identifier=rule["id"], extra=["operator-1"])
         self.assertEqual(approved["status"], "approved")
+        self.assertEqual(approved["approved_by"], "operator-1")
         self.assertEqual(self.run_cli("find-rules", metadata), [approved])
         self.assertEqual(self.run_cli("find-rules", dict(metadata, region="Osaka")), [])
 
