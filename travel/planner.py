@@ -95,7 +95,7 @@ def render_model_route(rows, cost_totals):
     for row in rows:
         if not isinstance(row, dict):
             raise ValueError("each route row must be an object")
-        value = lambda key: str(row.get(key, "未確認"))
+        value = lambda key: "未確認" if row.get(key) is None else str(row.get(key))
         lines.append("時間：{0}｜スケジュール：{1}｜場所：{2}｜費用：{3}｜備考：{4}｜移動ルート：{5}".format(
             value("time"), value("schedule"), value("place"), value("cost"), value("notes"), value("route")))
     amounts = []

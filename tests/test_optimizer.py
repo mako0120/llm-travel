@@ -36,6 +36,13 @@ class OptimizerTests(unittest.TestCase):
     def test_fixture_source_has_explicit_unconfigured_state(self):
         self.assertEqual(FixtureSourceProvider(configured=False).lookup("x").state, "unconfigured")
 
+    def test_malformed_source_field_is_treated_as_unverified_not_a_crash(self):
+        for bad_source in [None, "not-a-dict", 42, []]:
+            malformed = dict(candidate("a"), source=bad_source)
+            result = optimize([malformed], FixtureRouteProvider({("origin", "a"): 1}),
+                              start_id="origin", budget=200, available_minutes=60)
+            self.assertEqual(result["state"], "infeasible")
+
 
 class TripReadinessTests(unittest.TestCase):
     def test_requires_verified_fresh_provenance_at_time_of_use(self):

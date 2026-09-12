@@ -49,13 +49,42 @@ class RepositoryTests(unittest.TestCase):
         metadata = {"region": "Kyoto", "transport": "walk", "people": 2}
         self.assertEqual(rule["status"], "pending")
         self.assertEqual(self.repo.find_rules(metadata), [])
-        approved = self.repo.approve_rule(rule["id"])
+        approved = self.repo.approve_rule(rule["id"], "operator-1")
+        self.assertEqual(approved["approved_by"], "operator-1")
         self.assertEqual(self.repo.find_rules(metadata), [approved])
         self.assertEqual(self.repo.find_rules({"region": "Kyoto"}), [])
         self.assertEqual(self.repo.find_rules(dict(metadata, transport="car")), [])
-        self.assertEqual(self.repo.approve_rule(rule["id"]), approved)
+        self.assertEqual(self.repo.approve_rule(rule["id"], "operator-2"), approved)
         with self.assertRaises(ValueError):
-            self.repo.approve_rule("missing")
+            self.repo.approve_rule("missing", "operator-1")
+
+    def test_approve_rule_requires_an_approver_identity(self):
+        rule = self.repo.propose_rule({"region": "Kyoto"}, "rushed", "Allow more time", ["feedback-1"])
+        for approver in [None, "", "   ", 0, False]:
+            with self.assertRaises(ValueError):
+                self.repo.approve_rule(rule["id"], approver)
+        self.assertEqual(self.repo.find_rules({"region": "Kyoto"}), [])
+
+    def test_find_rules_supports_threshold_conditions(self):
+        rule = self.repo.propose_rule(
+            {"participants": {"op": "gte", "value": 10}, "drive_hours": {"op": "gte", "value": 2}},
+            "driver fatigue", "add a second driver", ["feedback-1"],
+        )
+        self.repo.approve_rule(rule["id"], "operator-1")
+        self.assertEqual(len(self.repo.find_rules({"participants": 10, "drive_hours": 2})), 1)
+        self.assertEqual(len(self.repo.find_rules({"participants": 15, "drive_hours": 3})), 1)
+        self.assertEqual(self.repo.find_rules({"participants": 9, "drive_hours": 2}), [])
+        self.assertEqual(self.repo.find_rules({"participants": 10, "drive_hours": 1.9}), [])
+
+    def test_threshold_condition_shape_is_validated_at_propose_time(self):
+        for bad_condition in [
+            {"participants": {"op": "unknown", "value": 10}},
+            {"participants": {"op": "gte", "value": "10"}},
+            {"participants": {"op": "gte", "value": True}},
+            {"participants": {"op": "gte"}},
+        ]:
+            with self.assertRaises(ValueError):
+                self.repo.propose_rule(bad_condition, "rushed", "Allow more time", ["feedback-1"])
 
     def test_empty_condition_and_missing_evidence_rejected(self):
         for condition, evidence in [({}, ["feedback-1"]), ({"region": "Kyoto"}, [])]:
@@ -73,7 +102,7 @@ class RepositoryTests(unittest.TestCase):
                 lambda: self.repo.create_plan({"id": identifier}),
                 lambda: self.repo.get_plan(identifier),
                 lambda: self.repo.list_feedback(identifier),
-                lambda: self.repo.approve_rule(identifier),
+                lambda: self.repo.approve_rule(identifier, "operator-1"),
                 lambda: self.repo.add_feedback(identifier, 1, {"score": 4}, ""),
             ]
             for index, operation in enumerate(operations):
@@ -83,7 +112,7 @@ class RepositoryTests(unittest.TestCase):
     def test_nested_rule_conditions_require_matching_types(self):
         condition = {"party": {"children": [1], "accessible": True}}
         rule = self.repo.propose_rule(condition, "rushed", "More time", ["feedback-1"])
-        approved = self.repo.approve_rule(rule["id"])
+        approved = self.repo.approve_rule(rule["id"], "operator-1")
         self.assertEqual(self.repo.find_rules(condition), [approved])
         self.assertEqual(self.repo.find_rules({"party": {"children": [True], "accessible": True}}), [])
         self.assertEqual(self.repo.find_rules({"party": {"children": [1], "accessible": 1}}), [])

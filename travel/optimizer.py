@@ -34,10 +34,11 @@ def optimize(candidates, route_provider, *, start_id, budget, available_minutes,
         evaluations += 1
         if not isinstance(candidate, dict) or not isinstance(candidate.get("id"), str) or not candidate["id"]:
             continue
+        source = candidate.get("source")
         if (type(candidate.get("visit_minutes")) is not int or candidate["visit_minutes"] < 0
                 or not _valid_number(candidate.get("cost")) or candidate["cost"] < 0
                 or not _valid_number(candidate.get("score"))
-                or candidate.get("source", {}).get("verification_status") != "verified"):
+                or not isinstance(source, dict) or source.get("verification_status") != "verified"):
             continue
         route = route_provider.route_minutes(current, candidate["id"])
         if route.state == "unconfigured":

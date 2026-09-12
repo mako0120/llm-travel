@@ -74,9 +74,11 @@ Returned feedback adds generated `id` and UTC `created_at`. Feedback is tied to 
 }
 ```
 
-The returned record adds generated `id`, `status: "pending"`, UTC `created_at`, and `approved_at: null`. `approve_rule(id)` changes status to `approved` and sets UTC `approved_at`. This is a local operator action; the repository does not authenticate a human approver. Applications must supply that boundary before shared deployment. There is no rejected/expired rule state yet.
+A condition value is either a literal for exact-equality matching, or a threshold object `{"op": "eq"|"gte"|"lte", "value": <number>}` (e.g. `{"participants": {"op": "gte", "value": 10}}`) for numeric comparisons; the shape is validated at propose time.
 
-`find_rules(metadata)` returns only approved rules whose every condition key exists in metadata with exactly matching Python type and value. Extra metadata keys are allowed; no fuzzy or semantic matching occurs. Evidence is retained as context, not treated as verified causality. Rule application is a caller responsibility.
+The returned record adds generated `id`, `status: "pending"`, UTC `created_at`, `approved_at: null`, and `approved_by: null`. `approve_rule(id, approver_id)` requires a nonempty `approver_id` and changes status to `approved`, setting UTC `approved_at` and recording `approved_by`. This still is a local operator action; the repository does not authenticate the supplied approver identity, only requires that one is explicitly provided. Applications must supply real authentication before shared deployment. There is no rejected/expired rule state yet.
+
+`find_rules(metadata)` returns only approved rules whose every condition key exists in metadata and matches: exactly (type and value) for a literal condition value, or via the numeric comparison for a threshold condition value. Extra metadata keys are allowed; no fuzzy or semantic matching beyond the threshold operators occurs. Evidence is retained as context, not treated as verified causality. Rule application is a caller responsibility.
 
 ## Fixed evaluation
 
