@@ -34,5 +34,5 @@ class PlannerConversationTests(unittest.TestCase):
     def test_ready_session_creates_a_data_only_generation_time_research_request(self):
         session = PlannerSession(started=True, step=9, answers={key: "x" for key, _ in __import__("travel.planner", fromlist=["QUESTIONS"]).QUESTIONS})
         request = research_request(session, "profile-opaque", "trace-3")
-        self.assertEqual(request["source_targets"][1]["kind"], "route_provider")
+        self.assertIn("route_provider", request["source_targets"][1]["source_types"])
         self.assertEqual(request["requirements"]["destination"], "x")
