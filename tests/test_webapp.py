@@ -18,3 +18,8 @@ class WebAppTests(unittest.TestCase):
     def test_planner_api_collects_questions(self):
         _,body=self.post('/api/planner',{'session_id':'test','message':'はい'})
         self.assertEqual(json.loads(body)['step'],1)
+    def test_complete_conversation_creates_requested_research_run(self):
+        session='ready-test';self.post('/api/planner',{'session_id':session,'message':'はい'})
+        for answer in ['大阪','京都','1','グルメ','両方','50000','ホテル','公共交通','なし']:
+            _,body=self.post('/api/planner',{'session_id':session,'message':answer})
+        self.assertEqual(json.loads(body)['research']['state'],'requested')
