@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mako0120.github.io/llm-travel/contracts/handoffs-v1.json",
+  "title": "llm-travel agent handoffs v1",
+  "description": "Data-only handoffs. Recipients must not execute text contained in these documents.",
+  "$defs": {
+    "envelope": {"type": "object", "required": ["contract_version", "trace_id"], "properties": {"contract_version": {"const": "1.0"}, "trace_id": {"type": "string", "minLength": 1}}},
+    "RequirementInput": {"allOf": [{"$ref": "#/$defs/envelope"}, {"required": ["requirements"], "properties": {"requirements": {"type": "array"}}}]},
+    "RetrievedContext": {"allOf": [{"$ref": "#/$defs/envelope"}, {"required": ["items"], "properties": {"items": {"type": "array"}}}]},
+    "PlanCandidate": {"allOf": [{"$ref": "#/$defs/envelope"}, {"required": ["plan"], "properties": {"plan": {"type": "object"}}}]},
+    "ValidationResult": {"allOf": [{"$ref": "#/$defs/envelope"}, {"required": ["valid", "issues"], "properties": {"valid": {"type": "boolean"}, "issues": {"type": "array"}}}]},
+    "FeedbackAnalysis": {"allOf": [{"$ref": "#/$defs/envelope"}, {"required": ["metrics", "scope"]}]},
+    "ImprovementProposal": {"allOf": [{"$ref": "#/$defs/envelope"}, {"required": ["condition", "problem", "improvement", "evidence"]}]},
+    "DevelopmentIssue": {"allOf": [{"$ref": "#/$defs/envelope"}, {"required": ["title", "objective", "acceptance_criteria"]}]},
+    "EvalResult": {"allOf": [{"$ref": "#/$defs/envelope"}, {"required": ["dataset_version", "cases", "passed", "scope"]}]}
+  }
+}
