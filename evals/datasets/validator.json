@@ -1,0 +1,284 @@
+{
+  "name": "synthetic-validator-v1",
+  "synthetic": true,
+  "now": "2026-09-12T00:00:00+00:00",
+  "cases": [
+    {
+      "id": "valid",
+      "plan": {
+        "start": "2026-09-13T09:00:00+09:00",
+        "end": "2026-09-13T18:00:00+09:00",
+        "budget": 5000,
+        "required_activity_ids": [
+          "synthetic-museum"
+        ],
+        "activities": [
+          {
+            "id": "synthetic-museum",
+            "start": "2026-09-13T10:00:00+09:00",
+            "end": "2026-09-13T11:00:00+09:00",
+            "cost": 1500,
+            "transit_minutes": 60,
+            "source": {
+              "url": "https://example.org/synthetic-museum",
+              "expires_at": "2026-09-14T00:00:00Z"
+            }
+          }
+        ]
+      },
+      "expected_issue_codes": []
+    },
+    {
+      "id": "overlap",
+      "plan": {
+        "start": "2026-09-13T09:00:00+09:00",
+        "end": "2026-09-13T18:00:00+09:00",
+        "budget": 5000,
+        "required_activity_ids": [
+          "synthetic-museum"
+        ],
+        "activities": [
+          {
+            "id": "synthetic-museum",
+            "start": "2026-09-13T10:00:00+09:00",
+            "end": "2026-09-13T11:00:00+09:00",
+            "cost": 1500,
+            "transit_minutes": 60,
+            "source": {
+              "url": "https://example.org/synthetic-museum",
+              "expires_at": "2026-09-14T00:00:00Z"
+            }
+          },
+          {
+            "id": "synthetic-park",
+            "start": "2026-09-13T10:30:00+09:00",
+            "end": "2026-09-13T11:30:00+09:00",
+            "cost": 1500,
+            "transit_minutes": 0,
+            "source": {
+              "url": "https://example.org/synthetic-museum",
+              "expires_at": "2026-09-14T00:00:00Z"
+            }
+          }
+        ]
+      },
+      "expected_issue_codes": [
+        "overlap",
+        "insufficient_transit"
+      ]
+    },
+    {
+      "id": "transit_gap",
+      "plan": {
+        "start": "2026-09-13T09:00:00+09:00",
+        "end": "2026-09-13T18:00:00+09:00",
+        "budget": 5000,
+        "required_activity_ids": [
+          "synthetic-museum"
+        ],
+        "activities": [
+          {
+            "id": "synthetic-museum",
+            "start": "2026-09-13T10:00:00+09:00",
+            "end": "2026-09-13T11:00:00+09:00",
+            "cost": 1500,
+            "transit_minutes": 61,
+            "source": {
+              "url": "https://example.org/synthetic-museum",
+              "expires_at": "2026-09-14T00:00:00Z"
+            }
+          }
+        ]
+      },
+      "expected_issue_codes": [
+        "insufficient_transit"
+      ]
+    },
+    {
+      "id": "over_budget",
+      "plan": {
+        "start": "2026-09-13T09:00:00+09:00",
+        "end": "2026-09-13T18:00:00+09:00",
+        "budget": 1499,
+        "required_activity_ids": [
+          "synthetic-museum"
+        ],
+        "activities": [
+          {
+            "id": "synthetic-museum",
+            "start": "2026-09-13T10:00:00+09:00",
+            "end": "2026-09-13T11:00:00+09:00",
+            "cost": 1500,
+            "transit_minutes": 60,
+            "source": {
+              "url": "https://example.org/synthetic-museum",
+              "expires_at": "2026-09-14T00:00:00Z"
+            }
+          }
+        ]
+      },
+      "expected_issue_codes": [
+        "over_budget"
+      ]
+    },
+    {
+      "id": "expired_source",
+      "plan": {
+        "start": "2026-09-13T09:00:00+09:00",
+        "end": "2026-09-13T18:00:00+09:00",
+        "budget": 5000,
+        "required_activity_ids": [
+          "synthetic-museum"
+        ],
+        "activities": [
+          {
+            "id": "synthetic-museum",
+            "start": "2026-09-13T10:00:00+09:00",
+            "end": "2026-09-13T11:00:00+09:00",
+            "cost": 1500,
+            "transit_minutes": 60,
+            "source": {
+              "url": "https://example.org/synthetic-museum",
+              "expires_at": "2026-09-12T00:00:00Z"
+            }
+          }
+        ]
+      },
+      "expected_issue_codes": [
+        "expired_source"
+      ]
+    },
+    {
+      "id": "missing_required",
+      "plan": {
+        "start": "2026-09-13T09:00:00+09:00",
+        "end": "2026-09-13T18:00:00+09:00",
+        "budget": 5000,
+        "required_activity_ids": [
+          "synthetic-museum",
+          "synthetic-park"
+        ],
+        "activities": [
+          {
+            "id": "synthetic-museum",
+            "start": "2026-09-13T10:00:00+09:00",
+            "end": "2026-09-13T11:00:00+09:00",
+            "cost": 1500,
+            "transit_minutes": 60,
+            "source": {
+              "url": "https://example.org/synthetic-museum",
+              "expires_at": "2026-09-14T00:00:00Z"
+            }
+          }
+        ]
+      },
+      "expected_issue_codes": [
+        "missing_required"
+      ]
+    },
+    {
+      "id": "naive_timezone",
+      "plan": {
+        "start": "2026-09-13T09:00:00",
+        "end": "2026-09-13T18:00:00+09:00",
+        "budget": 5000,
+        "required_activity_ids": [
+          "synthetic-museum"
+        ],
+        "activities": [
+          {
+            "id": "synthetic-museum",
+            "start": "2026-09-13T10:00:00+09:00",
+            "end": "2026-09-13T11:00:00+09:00",
+            "cost": 1500,
+            "transit_minutes": 60,
+            "source": {
+              "url": "https://example.org/synthetic-museum",
+              "expires_at": "2026-09-14T00:00:00Z"
+            }
+          }
+        ]
+      },
+      "expected_issue_codes": [
+        "invalid_time"
+      ]
+    },
+    {
+      "id": "missing_provenance",
+      "plan": {
+        "start": "2026-09-13T09:00:00+09:00",
+        "end": "2026-09-13T18:00:00+09:00",
+        "budget": 5000,
+        "required_activity_ids": [
+          "synthetic-museum"
+        ],
+        "activities": [
+          {
+            "id": "synthetic-museum",
+            "start": "2026-09-13T10:00:00+09:00",
+            "end": "2026-09-13T11:00:00+09:00",
+            "cost": 1500,
+            "transit_minutes": 60
+          }
+        ]
+      },
+      "expected_issue_codes": [
+        "missing_source"
+      ]
+    },
+    {
+      "id": "unknown_provenance",
+      "plan": {
+        "start": "2026-09-13T09:00:00+09:00",
+        "end": "2026-09-13T18:00:00+09:00",
+        "budget": 5000,
+        "required_activity_ids": [
+          "synthetic-museum"
+        ],
+        "activities": [
+          {
+            "id": "synthetic-museum",
+            "start": "2026-09-13T10:00:00+09:00",
+            "end": "2026-09-13T11:00:00+09:00",
+            "cost": 1500,
+            "transit_minutes": 60,
+            "source": {
+              "url": "unknown",
+              "expires_at": "2026-09-14T00:00:00Z"
+            }
+          }
+        ]
+      },
+      "expected_issue_codes": [
+        "invalid_source"
+      ]
+    },
+    {
+      "id": "boolean_cost",
+      "plan": {
+        "start": "2026-09-13T09:00:00+09:00",
+        "end": "2026-09-13T18:00:00+09:00",
+        "budget": 5000,
+        "required_activity_ids": [
+          "synthetic-museum"
+        ],
+        "activities": [
+          {
+            "id": "synthetic-museum",
+            "start": "2026-09-13T10:00:00+09:00",
+            "end": "2026-09-13T11:00:00+09:00",
+            "cost": true,
+            "transit_minutes": 60,
+            "source": {
+              "url": "https://example.org/synthetic-museum",
+              "expires_at": "2026-09-14T00:00:00Z"
+            }
+          }
+        ]
+      },
+      "expected_issue_codes": [
+        "invalid_cost"
+      ]
+    }
+  ]
+}
