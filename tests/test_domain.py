@@ -67,6 +67,11 @@ class PlanTests(unittest.TestCase):
         plan["activities"][0]["end"] = "2026-09-13T09:00:00+09:00"
         self.assertTrue({"invalid_time", "invalid_range"} <= self.codes(plan))
 
+    def test_non_trailing_z_is_not_rewritten(self):
+        plan = fixture()
+        plan["start"] = "2026-09-12Z09:00:00+00:00"
+        self.assertIn("invalid_time", self.codes(plan))
+
     def test_numeric_rejection(self):
         for invalid in (True, False, float("nan"), float("inf"), -1, "20", None, {}, 10 ** 1000):
             for key, code in (("cost", "invalid_cost"), ("transit_minutes", "invalid_transit")):
