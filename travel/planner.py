@@ -67,6 +67,12 @@ def planning_brief(session):
     return {"contract_version": "1.0", "trace_id": "planner-session", "requirements": session.answers,
             "system_prompt": PLANNER_SYSTEM_PROMPT,
             "required_retrieval": ["official transport timetable", "official opening hours and prices", "lodging availability", "restaurant ratings and review counts", "source freshness"],
+            "experience_value_policy": {
+                "objective": "maximize experiential value",
+                "priority_dimensions": ["scenery", "place_appeal", "food"],
+                "guardrails": ["reduce driving burden", "make safety information explicit", "protect bathing and souvenir time", "offer a rainy-day alternative", "explain the plan before departure"],
+                "improvement_evidence": "qualitative_comment_only",
+            },
             "output_format": ["時間", "スケジュール", "場所", "費用", "備考", "移動ルート"],
             "unconfigured_behavior": "Do not invent ratings, timetable times, prices, routes, or availability."}
 
@@ -77,7 +83,7 @@ def research_request(session, profile_id, trace_id):
         raise ValueError("profile_id and trace_id must be nonempty strings")
     brief = planning_brief(session)
     return {"contract_version": "1.0", "trace_id": trace_id, "profile_id": profile_id,
-            "requirements": brief["requirements"],
+            "requirements": brief["requirements"], "experience_value_policy": brief["experience_value_policy"],
             "source_targets": [
                 {"query": "opening hours prices reservations", "location": session.answers["destination"], "category": "attractions", "freshness_minutes": 1440, "source_types": ["official"]},
                 {"query": "route stations timetable duration", "location": session.answers["destination"], "category": "transport", "freshness_minutes": 60, "source_types": ["official", "route_provider"]},

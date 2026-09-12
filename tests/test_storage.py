@@ -37,14 +37,21 @@ class RepositoryTests(unittest.TestCase):
 
     def test_invalid_rating_values_are_rejected(self):
         plan = self.repo.create_plan({})
-        for ratings in [{}, {"score": True}, {"score": 0}, {"score": 6}, {"score": 3.5}, {"score": "4"}]:
+        for ratings in [{}, {"score": True}, {"score": 0}, {"score": 8}, {"score": 3.5}, {"score": "4"}]:
             with self.subTest(ratings=ratings), self.assertRaises(ValueError):
                 self.repo.add_feedback(plan["id"], 1, ratings, "")
         self.assertEqual(self.repo.list_feedback(plan["id"]), [])
 
+    def test_seven_point_ratings_are_accepted_for_monitoring(self):
+        plan = self.repo.create_plan({})
+        feedback = self.repo.add_feedback(plan["id"], 1, {"scenery": 7, "lodging": 5}, "The view was memorable")
+        self.assertEqual(feedback["ratings"], {"scenery": 7, "lodging": 5})
+
     def test_only_approved_rules_with_all_exact_conditions_are_reused(self):
-        rule = self.repo.propose_rule(
-            {"region": "Kyoto", "transport": "walk"}, "rushed", "Allow more time", ["feedback-1"]
+        plan = self.repo.create_plan({})
+        feedback = self.repo.add_feedback(plan["id"], 1, {"satisfaction": 4}, "Allow more time between visits")
+        rule = self.repo.propose_rule_from_comments(
+            {"region": "Kyoto", "transport": "walk"}, "rushed", "Allow more time", [feedback["id"]]
         )
         metadata = {"region": "Kyoto", "transport": "walk", "people": 2}
         self.assertEqual(rule["status"], "pending")
@@ -58,7 +65,7 @@ class RepositoryTests(unittest.TestCase):
             self.repo.approve_rule("missing")
 
     def test_empty_condition_and_missing_evidence_rejected(self):
-        for condition, evidence in [({}, ["feedback-1"]), ({"region": "Kyoto"}, [])]:
+        for condition, evidence in [({}, {"evidence_type": "qualitative_comment_only", "feedback_ids": ["feedback-1"]}), ({"region": "Kyoto"}, {"evidence_type": "qualitative_comment_only", "feedback_ids": []})]:
             with self.assertRaises(ValueError):
                 self.repo.propose_rule(condition, "rushed", "Allow more time", evidence)
 
@@ -82,11 +89,29 @@ class RepositoryTests(unittest.TestCase):
 
     def test_nested_rule_conditions_require_matching_types(self):
         condition = {"party": {"children": [1], "accessible": True}}
-        rule = self.repo.propose_rule(condition, "rushed", "More time", ["feedback-1"])
+        plan = self.repo.create_plan({})
+        feedback = self.repo.add_feedback(plan["id"], 1, {"score": 4}, "Need a longer rest")
+        rule = self.repo.propose_rule_from_comments(condition, "rushed", "More time", [feedback["id"]])
         approved = self.repo.approve_rule(rule["id"])
         self.assertEqual(self.repo.find_rules(condition), [approved])
         self.assertEqual(self.repo.find_rules({"party": {"children": [True], "accessible": True}}), [])
         self.assertEqual(self.repo.find_rules({"party": {"children": [1], "accessible": 1}}), [])
+
+    def test_rule_rejects_ratings_only_or_empty_qualitative_evidence(self):
+        plan = self.repo.create_plan({})
+        ratings_only = self.repo.add_feedback(plan["id"], 1, {"overall": 5}, "")
+        with self.assertRaises(ValueError):
+            self.repo.propose_rule_from_comments({"region": "Kyoto"}, "rushed", "More time", [ratings_only["id"]])
+        with self.assertRaises(ValueError):
+            self.repo.propose_rule({"region": "Kyoto"}, "rushed", "More time", {"ratings": {"overall": 1}})
+
+    def test_rule_evidence_retains_only_qualitative_feedback_references(self):
+        plan = self.repo.create_plan({})
+        feedback = self.repo.add_feedback(plan["id"], 1, {"overall": 1}, "The drive felt unsafe in rain")
+        rule = self.repo.propose_rule_from_comments(
+            {"transport": "car"}, "Safety anxiety", "Offer rail alternative and rainy-day plan", [feedback["id"]]
+        )
+        self.assertEqual(rule["evidence"], {"evidence_type": "qualitative_comment_only", "feedback_ids": [feedback["id"]]})
 
 
 if __name__ == "__main__":
