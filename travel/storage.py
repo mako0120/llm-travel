@@ -119,6 +119,17 @@ class Repository:
                     created_at TEXT NOT NULL,
                     FOREIGN KEY(source_feedback_id) REFERENCES feedback(id)
                 );
+                CREATE TABLE IF NOT EXISTS agent_messages (
+                    sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id TEXT NOT NULL UNIQUE,
+                    conversation_id TEXT NOT NULL,
+                    author TEXT NOT NULL CHECK(author IN ('claude', 'codex', 'human')),
+                    message_type TEXT NOT NULL CHECK(message_type IN ('position', 'question', 'response', 'decision', 'handoff')),
+                    body TEXT NOT NULL,
+                    reply_to TEXT,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(reply_to) REFERENCES agent_messages(id)
+                );
             """)
 
     def close(self):
@@ -346,3 +357,31 @@ class Repository:
         with self._lock:
             rows = self._connection.execute("SELECT * FROM preference_signals WHERE profile_id = ? ORDER BY created_at, id", (profile_id,)).fetchall()
         return [dict(row) for row in rows]
+
+    def post_agent_message(self, conversation_id, author, message_type, body, reply_to=None):
+        """Store a data-only message from its actual author; it does not invoke agents."""
+        _identifier(conversation_id)
+        if author not in ("claude", "codex", "human"):
+            raise ValueError("author must identify the actual participant")
+        if message_type not in ("position", "question", "response", "decision", "handoff"):
+            raise ValueError("message type is invalid")
+        if not isinstance(body, dict):
+            raise ValueError("message body must be structured data")
+        if reply_to is not None:
+            _identifier(reply_to)
+        record = {"id": str(uuid4()), "conversation_id": conversation_id, "author": author,
+                  "message_type": message_type, "body": json.loads(_json(body)), "reply_to": reply_to, "created_at": _now()}
+        with self._lock, self._connection:
+            if reply_to is not None and self._connection.execute("SELECT 1 FROM agent_messages WHERE id = ?", (reply_to,)).fetchone() is None:
+                raise ValueError("reply target does not exist")
+            self._connection.execute("INSERT INTO agent_messages(id, conversation_id, author, message_type, body, reply_to, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                     (record["id"], conversation_id, author, message_type, _json(body), reply_to, record["created_at"]))
+        return record
+
+    def read_agent_messages(self, conversation_id, after_sequence=0):
+        _identifier(conversation_id)
+        if type(after_sequence) is not int or after_sequence < 0:
+            raise ValueError("after_sequence must be a nonnegative integer")
+        with self._lock:
+            rows = self._connection.execute("SELECT * FROM agent_messages WHERE conversation_id = ? AND sequence > ? ORDER BY sequence", (conversation_id, after_sequence)).fetchall()
+        return [dict(dict(row), body=json.loads(row["body"])) for row in rows]
