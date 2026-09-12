@@ -26,6 +26,7 @@ class OptimizerTests(unittest.TestCase):
         result = optimize([candidate("a", status="unverified")], FixtureRouteProvider({("origin", "a"): 1}),
                           start_id="origin", budget=200, available_minutes=60)
         self.assertEqual(result["state"], "infeasible")
+        self.assertEqual(result["excluded"], [{"id": "a", "reason": "unverified_source"}])
 
     def test_timeout_is_bounded(self):
         ticks = iter((0, 2))

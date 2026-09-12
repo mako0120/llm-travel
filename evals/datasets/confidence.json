@@ -1,0 +1,9 @@
+{
+  "name": "synthetic-confidence-policy-v1",
+  "cases": [
+    {"id": "label-only", "confidence": "low", "required": false, "budget_sensitive": false, "alternative_available": false, "expected_fallback": "continue_with_labels"},
+    {"id": "lodging-budget", "confidence": "unknown", "required": false, "budget_sensitive": true, "alternative_available": false, "expected_fallback": "ask_user"},
+    {"id": "candidate-alternative", "confidence": "low", "required": false, "budget_sensitive": false, "alternative_available": true, "expected_fallback": "exclude_candidate"},
+    {"id": "required-accessibility", "confidence": "unknown", "required": true, "budget_sensitive": false, "alternative_available": true, "expected_fallback": "stop"}
+  ]
+}
