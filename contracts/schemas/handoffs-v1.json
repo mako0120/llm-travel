@@ -13,7 +13,7 @@
     "ImprovementProposal": {"allOf": [{"$ref": "#/$defs/envelope"}, {"required": ["condition", "problem", "improvement", "evidence"]}]},
     "DevelopmentIssue": {"allOf": [{"$ref": "#/$defs/envelope"}, {"required": ["title", "objective", "acceptance_criteria"]}]},
     "EvalResult": {"allOf": [{"$ref": "#/$defs/envelope"}, {"required": ["dataset_version", "cases", "passed", "scope"]}]},
-    "ResearchRequest": {"allOf": [{"$ref": "#/$defs/envelope"}, {"required": ["profile_id", "requirements", "source_targets"]}]},
-    "ResearchResult": {"allOf": [{"$ref": "#/$defs/envelope"}, {"required": ["request_id", "state", "evidence"]}]}
+    "ResearchRequest": {"allOf": [{"$ref": "#/$defs/envelope"}, {"required": ["profile_id", "requirements", "source_targets", "batch_unit", "retry_limit", "timeout_seconds"], "properties": {"batch_unit": {"const": "section"}, "retry_limit": {"type": "integer", "minimum": 0, "maximum": 2}, "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 120}}}]},
+    "ResearchResult": {"allOf": [{"$ref": "#/$defs/envelope"}, {"required": ["request_id", "state", "evidence", "confidence", "fallback"], "properties": {"confidence": {"enum": ["high", "medium", "low", "unknown"]}, "fallback": {"enum": ["continue_with_labels", "ask_user", "exclude_candidate", "stop"]}}}]}
   }
 }

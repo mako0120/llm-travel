@@ -79,12 +79,12 @@ def research_request(session, profile_id, trace_id):
     return {"contract_version": "1.0", "trace_id": trace_id, "profile_id": profile_id,
             "requirements": brief["requirements"],
             "source_targets": [
-                {"kind": "official", "purpose": "opening hours, prices, reservations"},
-                {"kind": "route_provider", "purpose": "routes, stations, timetables, durations"},
-                {"kind": "Google", "purpose": "restaurant and place discovery with provenance"},
-                {"kind": "Tabelog", "purpose": "restaurant reviews and ratings with provenance"},
-                {"kind": "TikTok", "purpose": "discovery only; not authoritative for hours or prices"},
-            ]}
+                {"query": "opening hours prices reservations", "location": session.answers["destination"], "category": "attractions", "freshness_minutes": 1440, "source_types": ["official"]},
+                {"query": "route stations timetable duration", "location": session.answers["destination"], "category": "transport", "freshness_minutes": 60, "source_types": ["official", "route_provider"]},
+                {"query": "restaurants ratings reviews local specialties", "location": session.answers["destination"], "category": "food", "freshness_minutes": 1440, "source_types": ["Google", "Tabelog", "official"]},
+                {"query": "hidden gems discovery", "location": session.answers["destination"], "category": "discovery", "freshness_minutes": 10080, "source_types": ["TikTok", "Google"]},
+            ],
+            "batch_unit": "section", "retry_limit": 1, "timeout_seconds": 30}
 
 
 def render_model_route(rows, cost_totals):
