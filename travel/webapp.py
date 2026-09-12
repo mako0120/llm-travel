@@ -6,11 +6,12 @@ from pathlib import Path
 from urllib.parse import parse_qs
 from wsgiref.simple_server import make_server
 from travel.storage import Repository
-from travel.planner import PlannerSession, next_turn
+from travel.planner import PlannerSession, next_turn, research_request
 
 
 ROOT = Path(__file__).resolve().parents[1] / "web"
 SESSIONS = {}
+RESEARCH_RUNS = {}
 
 
 def application(environ, start_response):
@@ -21,6 +22,18 @@ def application(environ, start_response):
         session_id = data.get("session_id", "local")
         session, result = next_turn(SESSIONS.get(session_id, PlannerSession()), data.get("message"))
         SESSIONS[session_id] = session
+        if result["state"] == "ready" and session_id not in RESEARCH_RUNS:
+            request = research_request(session, f"local-{session_id}", f"planner-{session_id}")
+            db_path = os.environ.get("LLM_TRAVEL_DB", "data/travel.sqlite3")
+            Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+            repo = Repository(db_path)
+            try:
+                run = repo.create_research_run(request["profile_id"], request["requirements"], request["source_targets"])
+            finally:
+                repo.close()
+            RESEARCH_RUNS[session_id] = run["id"]
+        if session_id in RESEARCH_RUNS:
+            result["research"] = {"run_id": RESEARCH_RUNS[session_id], "state": "requested", "message": "情報収集の準備中です。未確認の旅行情報は表示しません。"}
         start_response("200 OK", [("Content-Type", "application/json; charset=utf-8")])
         return [json.dumps({"session_id": session_id, **result}, ensure_ascii=False).encode("utf-8")]
     if path == "/api/dialogue":
