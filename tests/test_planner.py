@@ -31,6 +31,13 @@ class PlannerConversationTests(unittest.TestCase):
         self.assertIn("時間：09:00｜スケジュール：移動｜場所：大阪駅", output)
         self.assertIn("合計費用：13300円", output)
 
+    def test_model_route_shows_unconfirmed_for_explicit_null_fields_not_the_word_none(self):
+        output = render_model_route([{"time": "09:00", "schedule": None, "place": "大阪駅", "cost": None, "notes": "王道", "route": "JR 京都線"}],
+                                    {"transport": 0, "lodging": 0, "food": 0, "admission": 0})
+        self.assertIn("スケジュール：未確認", output)
+        self.assertIn("費用：未確認", output)
+        self.assertNotIn("None", output)
+
     def test_ready_session_creates_a_data_only_generation_time_research_request(self):
         session = PlannerSession(started=True, step=9, answers={key: "x" for key, _ in __import__("travel.planner", fromlist=["QUESTIONS"]).QUESTIONS})
         request = research_request(session, "profile-opaque", "trace-3")

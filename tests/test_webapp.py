@@ -1,6 +1,10 @@
 import unittest
 import io
 import json
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
+import travel.webapp
 from travel.webapp import application
 
 class WebAppTests(unittest.TestCase):
@@ -23,3 +27,33 @@ class WebAppTests(unittest.TestCase):
         for answer in ['大阪','京都','1','グルメ','両方','50000','ホテル','公共交通','なし']:
             _,body=self.post('/api/planner',{'session_id':session,'message':answer})
         self.assertEqual(json.loads(body)['research']['state'],'requested')
+
+    def test_path_traversal_outside_web_root_is_rejected(self):
+        for path in ['/../CLAUDE.md', '/../../CLAUDE.md', '/../AGENTS.md']:
+            seen, _ = self.request(path)
+            self.assertEqual(seen[0], '404 Not Found', path)
+
+    def test_path_traversal_cannot_read_a_sibling_html_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            web_root = base / "web"
+            web_root.mkdir()
+            (web_root / "index.html").write_text("<html>ok</html>", encoding="utf-8")
+            secret = base / "secret.html"
+            secret.write_text("SECRET", encoding="utf-8")
+            with patch.object(travel.webapp, "ROOT", web_root):
+                seen, body = self.request("/../secret.html")
+                self.assertEqual(seen[0], "404 Not Found")
+                self.assertNotIn(b"SECRET", body)
+
+    def test_malformed_request_body_returns_400_not_a_crash(self):
+        seen = []
+        body = b''.join(application({'PATH_INFO': '/api/planner', 'REQUEST_METHOD': 'POST',
+                                     'CONTENT_LENGTH': 'not-a-number', 'wsgi.input': io.BytesIO(b'{}')},
+                                    lambda status, headers: seen.extend([status, headers])))
+        self.assertEqual(seen[0], '400 Bad Request')
+        seen = []
+        body = b''.join(application({'PATH_INFO': '/api/planner', 'REQUEST_METHOD': 'POST',
+                                     'CONTENT_LENGTH': '7', 'wsgi.input': io.BytesIO(b'{broken')},
+                                    lambda status, headers: seen.extend([status, headers])))
+        self.assertEqual(seen[0], '400 Bad Request')

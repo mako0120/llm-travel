@@ -47,6 +47,28 @@ def _exact(left, right):
     return left == right
 
 
+_THRESHOLD_OPS = ("eq", "gte", "lte")
+
+
+def _is_threshold_condition(value):
+    return (isinstance(value, dict) and set(value) == {"op", "value"} and value.get("op") in _THRESHOLD_OPS
+            and isinstance(value.get("value"), (int, float)) and not isinstance(value.get("value"), bool))
+
+
+def _matches_condition(actual, condition_value):
+    """Match either a legacy exact-equality condition or a {op, value} threshold condition."""
+    if _is_threshold_condition(condition_value):
+        if not isinstance(actual, (int, float)) or isinstance(actual, bool):
+            return False
+        op, target = condition_value["op"], condition_value["value"]
+        if op == "eq":
+            return actual == target
+        if op == "gte":
+            return actual >= target
+        return actual <= target
+    return _exact(actual, condition_value)
+
+
 class Repository:
     """A local repository; each plan revision is inserted, never overwritten."""
 
@@ -84,7 +106,8 @@ class Repository:
                     evidence TEXT NOT NULL,
                     status TEXT NOT NULL CHECK(status IN ('pending', 'approved')),
                     created_at TEXT NOT NULL,
-                    approved_at TEXT
+                    approved_at TEXT,
+                    approved_by TEXT
                 );
                 CREATE TABLE IF NOT EXISTS research_runs (
                     id TEXT PRIMARY KEY,
@@ -205,6 +228,9 @@ class Repository:
             raise ValueError("condition must be a nonempty object")
         if any(not isinstance(key, str) or not key.strip() for key in condition):
             raise ValueError("condition keys must be nonempty strings")
+        for value in condition.values():
+            if isinstance(value, dict) and "op" in value and not _is_threshold_condition(value):
+                raise ValueError("a threshold condition value must be {'op': 'eq'|'gte'|'lte', 'value': <number>}")
         if any(not isinstance(value, str) or not value.strip() for value in (problem, improvement)):
             raise ValueError("problem and improvement must be nonempty strings")
         if not evidence:
@@ -212,12 +238,12 @@ class Repository:
         record = dict(id=str(uuid4()), condition=json.loads(_json(condition)),
                       problem=problem, improvement=improvement,
                       evidence=json.loads(_json(evidence)), status="pending",
-                      created_at=_now(), approved_at=None)
+                      created_at=_now(), approved_at=None, approved_by=None)
         with self._lock, self._connection:
             self._connection.execute(
-                "INSERT INTO rules VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO rules VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (record["id"], _json(condition), problem, improvement, _json(evidence),
-                 "pending", record["created_at"], None),
+                 "pending", record["created_at"], None, None),
             )
         return record
 
@@ -226,15 +252,19 @@ class Repository:
         return dict(dict(row), condition=json.loads(row["condition"]),
                     evidence=json.loads(row["evidence"]))
 
-    def approve_rule(self, rule_id):
+    def approve_rule(self, rule_id, approver_id):
+        """Approve a pending rule. Requires an explicit human approver identity; this is a
+        local-operator mechanism only and does not itself perform authentication."""
         _identifier(rule_id)
+        _identifier(approver_id)
         with self._lock, self._connection:
             row = self._connection.execute("SELECT * FROM rules WHERE id = ?", (rule_id,)).fetchone()
             if row is None:
                 raise ValueError("Rule does not exist")
             if row["status"] != "approved":
                 self._connection.execute(
-                    "UPDATE rules SET status = 'approved', approved_at = ? WHERE id = ?", (_now(), rule_id)
+                    "UPDATE rules SET status = 'approved', approved_at = ?, approved_by = ? WHERE id = ?",
+                    (_now(), approver_id, rule_id),
                 )
                 row = self._connection.execute("SELECT * FROM rules WHERE id = ?", (rule_id,)).fetchone()
             return self._rule(row)
@@ -248,7 +278,7 @@ class Repository:
             ).fetchall()
             rules = [self._rule(row) for row in rows]
         return [rule for rule in rules if all(
-            key in metadata and _exact(metadata[key], value)
+            key in metadata and _matches_condition(metadata[key], value)
             for key, value in rule["condition"].items()
         )]
 
