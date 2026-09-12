@@ -5,6 +5,7 @@ import sqlite3
 import threading
 from datetime import datetime, timezone
 from uuid import uuid4
+import hashlib
 
 
 def _now():
@@ -22,6 +23,18 @@ def _identifier(value):
     if not isinstance(value, str) or not value.strip():
         raise ValueError("id must be a nonempty string")
     return value
+
+
+def _timestamp(value):
+    if not isinstance(value, str):
+        raise ValueError("timestamp must be an ISO string with timezone")
+    try:
+        parsed = datetime.fromisoformat(value[:-1] + "+00:00" if value.endswith("Z") else value)
+    except ValueError as exc:
+        raise ValueError("timestamp must be an ISO string with timezone") from exc
+    if parsed.utcoffset() is None:
+        raise ValueError("timestamp must include timezone")
+    return parsed
 
 
 def _exact(left, right):
@@ -72,6 +85,39 @@ class Repository:
                     status TEXT NOT NULL CHECK(status IN ('pending', 'approved')),
                     created_at TEXT NOT NULL,
                     approved_at TEXT
+                );
+                CREATE TABLE IF NOT EXISTS research_runs (
+                    id TEXT PRIMARY KEY,
+                    profile_id TEXT NOT NULL,
+                    requirements TEXT NOT NULL,
+                    source_targets TEXT NOT NULL,
+                    state TEXT NOT NULL CHECK(state IN ('requested', 'researching', 'ready', 'failed', 'unconfigured')),
+                    created_at TEXT NOT NULL,
+                    completed_at TEXT
+                );
+                CREATE TABLE IF NOT EXISTS research_evidence (
+                    id TEXT PRIMARY KEY,
+                    run_id TEXT NOT NULL,
+                    agent TEXT NOT NULL CHECK(agent IN ('claude', 'codex', 'human', 'provider')),
+                    source_type TEXT NOT NULL,
+                    url TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    facts TEXT NOT NULL,
+                    retrieved_at TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    verification_status TEXT NOT NULL CHECK(verification_status IN ('verified', 'unverified')),
+                    content_hash TEXT NOT NULL,
+                    FOREIGN KEY(run_id) REFERENCES research_runs(id)
+                );
+                CREATE TABLE IF NOT EXISTS preference_signals (
+                    id TEXT PRIMARY KEY,
+                    profile_id TEXT NOT NULL,
+                    preference_key TEXT NOT NULL,
+                    preference_value TEXT NOT NULL,
+                    weight REAL NOT NULL,
+                    source_feedback_id TEXT,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(source_feedback_id) REFERENCES feedback(id)
                 );
             """)
 
@@ -194,3 +240,109 @@ class Repository:
             key in metadata and _exact(metadata[key], value)
             for key, value in rule["condition"].items()
         )]
+
+    def create_research_run(self, profile_id, requirements, source_targets):
+        """Create a request for an independent research agent; no agent is invoked here."""
+        _identifier(profile_id)
+        if not isinstance(requirements, dict) or not isinstance(source_targets, list):
+            raise ValueError("requirements must be an object and source_targets must be a list")
+        record = {"id": str(uuid4()), "profile_id": profile_id, "requirements": json.loads(_json(requirements)),
+                  "source_targets": json.loads(_json(source_targets)), "state": "requested", "created_at": _now(), "completed_at": None}
+        with self._lock, self._connection:
+            self._connection.execute("INSERT INTO research_runs VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                     (record["id"], profile_id, _json(requirements), _json(source_targets), "requested", record["created_at"], None))
+        return record
+
+    def record_evidence(self, run_id, evidence):
+        """Persist supplied research evidence with provenance; do not assert its truth."""
+        _identifier(run_id)
+        if not isinstance(evidence, dict):
+            raise ValueError("evidence must be an object")
+        agent = evidence.get("agent")
+        if agent not in ("claude", "codex", "human", "provider"):
+            raise ValueError("agent must identify the independent evidence producer")
+        for key in ("source_type", "url", "title"):
+            if not isinstance(evidence.get(key), str) or not evidence[key].strip():
+                raise ValueError(f"{key} must be a nonempty string")
+        if not isinstance(evidence.get("facts"), dict):
+            raise ValueError("facts must be an object")
+        retrieved_at = _timestamp(evidence.get("retrieved_at"))
+        expires_at = _timestamp(evidence.get("expires_at"))
+        if expires_at <= retrieved_at:
+            raise ValueError("expires_at must follow retrieved_at")
+        status = evidence.get("verification_status")
+        if status not in ("verified", "unverified"):
+            raise ValueError("verification_status must be verified or unverified")
+        canonical = _json({key: evidence[key] for key in ("source_type", "url", "title", "facts", "retrieved_at", "expires_at", "verification_status")})
+        record = {"id": str(uuid4()), "run_id": run_id, "agent": agent, "source_type": evidence["source_type"],
+                  "url": evidence["url"], "title": evidence["title"], "facts": json.loads(_json(evidence["facts"])),
+                  "retrieved_at": retrieved_at.isoformat(), "expires_at": expires_at.isoformat(), "verification_status": status,
+                  "content_hash": hashlib.sha256(canonical.encode("utf-8")).hexdigest()}
+        with self._lock, self._connection:
+            run = self._connection.execute("SELECT state FROM research_runs WHERE id = ?", (run_id,)).fetchone()
+            if run is None:
+                raise ValueError("research run does not exist")
+            if run["state"] in ("ready", "failed", "unconfigured"):
+                raise ValueError("research run is already complete")
+            self._connection.execute("UPDATE research_runs SET state = 'researching' WHERE id = ?", (run_id,))
+            self._connection.execute("INSERT INTO research_evidence VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                     (record["id"], run_id, record["agent"], record["source_type"], record["url"], record["title"],
+                                      _json(record["facts"]), record["retrieved_at"], record["expires_at"], status, record["content_hash"]))
+        return record
+
+    def complete_research_run(self, run_id, state):
+        _identifier(run_id)
+        if state not in ("ready", "failed", "unconfigured"):
+            raise ValueError("research completion state is invalid")
+        with self._lock, self._connection:
+            row = self._connection.execute("SELECT state FROM research_runs WHERE id = ?", (run_id,)).fetchone()
+            if row is None:
+                raise ValueError("research run does not exist")
+            count = self._connection.execute("SELECT COUNT(*) FROM research_evidence WHERE run_id = ?", (run_id,)).fetchone()[0]
+            if state == "ready" and count == 0:
+                raise ValueError("ready research must contain evidence")
+            self._connection.execute("UPDATE research_runs SET state = ?, completed_at = ? WHERE id = ?", (state, _now(), run_id))
+            return self.get_research_run(run_id)
+
+    def get_research_run(self, run_id):
+        _identifier(run_id)
+        with self._lock:
+            row = self._connection.execute("SELECT * FROM research_runs WHERE id = ?", (run_id,)).fetchone()
+            if row is None:
+                return None
+            evidence = self._connection.execute("SELECT * FROM research_evidence WHERE run_id = ? ORDER BY retrieved_at, id", (run_id,)).fetchall()
+        result = dict(dict(row), requirements=json.loads(row["requirements"]), source_targets=json.loads(row["source_targets"]))
+        result["evidence"] = [dict(dict(item), facts=json.loads(item["facts"])) for item in evidence]
+        return result
+
+    def fresh_verified_evidence(self, run_id, now=None):
+        now = now or datetime.now(timezone.utc)
+        if not isinstance(now, datetime) or now.utcoffset() is None:
+            raise ValueError("now must be timezone-aware")
+        run = self.get_research_run(run_id)
+        if run is None or run["state"] != "ready":
+            return []
+        return [item for item in run["evidence"] if item["verification_status"] == "verified" and _timestamp(item["expires_at"]) > now]
+
+    def add_preference_signal(self, profile_id, preference_key, preference_value, weight, source_feedback_id=None):
+        _identifier(profile_id)
+        if not all(isinstance(value, str) and value.strip() for value in (preference_key, preference_value)):
+            raise ValueError("preference key and value must be nonempty strings")
+        if not isinstance(weight, (int, float)) or isinstance(weight, bool) or not -1 <= weight <= 1:
+            raise ValueError("weight must be a number from -1 to 1")
+        if source_feedback_id is not None:
+            _identifier(source_feedback_id)
+            with self._lock:
+                if self._connection.execute("SELECT 1 FROM feedback WHERE id = ?", (source_feedback_id,)).fetchone() is None:
+                    raise ValueError("source feedback does not exist")
+        record = {"id": str(uuid4()), "profile_id": profile_id, "preference_key": preference_key, "preference_value": preference_value,
+                  "weight": weight, "source_feedback_id": source_feedback_id, "created_at": _now()}
+        with self._lock, self._connection:
+            self._connection.execute("INSERT INTO preference_signals VALUES (?, ?, ?, ?, ?, ?, ?)", tuple(record.values()))
+        return record
+
+    def profile_context(self, profile_id):
+        _identifier(profile_id)
+        with self._lock:
+            rows = self._connection.execute("SELECT * FROM preference_signals WHERE profile_id = ? ORDER BY created_at, id", (profile_id,)).fetchall()
+        return [dict(row) for row in rows]

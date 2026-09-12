@@ -7,7 +7,7 @@ Close the loop from travel plan to actual feedback, deterministic analysis, prop
 Current scope is local single-user synthetic-data validation and persistence. No network server, authentication claim, live routing, LLM calls, booking or safety guarantee.
 
 ## Runtime
-CLI → domain validator → SQLite repository → version-linked feedback → statistics → pending rule → explicit operator approval → metadata matching.
+対話条件 + 個人嗜好 → generation-time ResearchRequest → Claude/Codexによる独立調査 → 根拠付き候補 → Solver → Validator → SQLiteの版付き計画 → 実績・Feedback → 個人嗜好・改善知識更新。
 The validator checks supplied evidence timestamps; it cannot establish that a URL's contents are true. Provider contracts distinguish `unconfigured`, `unavailable`, `invalid`, and `available`; a trip-ready validation requires explicitly verified and non-expired evidence at time of use. Fixture providers never fetch URLs. The bounded deterministic optimizer only selects candidates with supplied verified fixture evidence and never relaxes hard constraints.
 
 ## Target
