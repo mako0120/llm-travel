@@ -174,9 +174,9 @@ class Repository:
         _identifier(plan_id)
         if not isinstance(ratings, dict) or not ratings:
             raise ValueError("ratings must be a nonempty object")
-        if any(not isinstance(k, str) or not k.strip() or type(v) is not int or not 1 <= v <= 5
+        if any(not isinstance(k, str) or not k.strip() or type(v) is not int or not 1 <= v <= 7
                for k, v in ratings.items()):
-            raise ValueError("ratings must have named integer scores from 1 to 5")
+            raise ValueError("ratings must have named integer scores from 1 to 7")
         if not isinstance(comment, str):
             raise ValueError("comment must be a string")
         if type(version) is not int or version < 1:
@@ -201,14 +201,40 @@ class Repository:
             return [dict(dict(row), ratings=json.loads(row["ratings"])) for row in rows]
 
     def propose_rule(self, condition, problem, improvement, evidence):
+        """Create a pending rule backed only by nonempty free-text feedback.
+
+        Ratings remain available for descriptive monitoring, but cannot be used
+        as evidence to create or rank a reusable improvement rule.
+        """
         if not isinstance(condition, dict) or not condition:
             raise ValueError("condition must be a nonempty object")
         if any(not isinstance(key, str) or not key.strip() for key in condition):
             raise ValueError("condition keys must be nonempty strings")
         if any(not isinstance(value, str) or not value.strip() for value in (problem, improvement)):
             raise ValueError("problem and improvement must be nonempty strings")
-        if not evidence:
-            raise ValueError("evidence is required")
+        if not isinstance(evidence, dict) or set(evidence) != {"evidence_type", "feedback_ids"}:
+            raise ValueError("evidence must contain only evidence_type and feedback_ids")
+        if evidence["evidence_type"] != "qualitative_comment_only":
+            raise ValueError("improvement rules require qualitative_comment_only evidence")
+        feedback_ids = evidence["feedback_ids"]
+        if not isinstance(feedback_ids, list) or not feedback_ids:
+            raise ValueError("feedback_ids must be a nonempty list")
+        if len(set(feedback_ids)) != len(feedback_ids):
+            raise ValueError("feedback_ids must not contain duplicates")
+        for feedback_id in feedback_ids:
+            _identifier(feedback_id)
+        with self._lock:
+            placeholders = ", ".join("?" for _ in feedback_ids)
+            rows = self._connection.execute(
+                f"SELECT id, comment FROM feedback WHERE id IN ({placeholders})", feedback_ids
+            ).fetchall()
+        comments = {row["id"]: row["comment"] for row in rows}
+        missing = [feedback_id for feedback_id in feedback_ids if feedback_id not in comments]
+        if missing:
+            raise ValueError("referenced feedback does not exist")
+        if any(not comments[feedback_id].strip() for feedback_id in feedback_ids):
+            raise ValueError("referenced feedback must contain a qualitative comment")
+        evidence = {"evidence_type": "qualitative_comment_only", "feedback_ids": list(feedback_ids)}
         record = dict(id=str(uuid4()), condition=json.loads(_json(condition)),
                       problem=problem, improvement=improvement,
                       evidence=json.loads(_json(evidence)), status="pending",
@@ -220,6 +246,12 @@ class Repository:
                  "pending", record["created_at"], None),
             )
         return record
+
+    def propose_rule_from_comments(self, condition, problem, improvement, feedback_ids):
+        """Convenience API for qualitative-only rule creation."""
+        return self.propose_rule(condition, problem, improvement, {
+            "evidence_type": "qualitative_comment_only", "feedback_ids": feedback_ids,
+        })
 
     @staticmethod
     def _rule(row):

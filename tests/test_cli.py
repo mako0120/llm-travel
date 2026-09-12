@@ -66,7 +66,7 @@ class CliTests(unittest.TestCase):
         rule = self.run_cli("propose-rule", {
             "condition": {"region": "Kyoto", "transport": "walk"},
             "problem": "Rushed transfers", "improvement": "Allow more transit time",
-            "evidence": [first["id"]],
+            "evidence": {"evidence_type": "qualitative_comment_only", "feedback_ids": [first["id"]]},
         })
         self.assertEqual(rule["status"], "pending")
         metadata = {"region": "Kyoto", "transport": "walk"}

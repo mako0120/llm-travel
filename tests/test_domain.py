@@ -99,11 +99,12 @@ class PlanTests(unittest.TestCase):
 class RatingTests(unittest.TestCase):
     def test_statistics(self):
         self.assertEqual(summarize_ratings([1, 3, 5]), {"count": 3, "mean": 3, "median": 3, "stdev": (8 / 3) ** 0.5})
+        self.assertEqual(summarize_ratings([7])["mean"], 7)
         self.assertEqual(summarize_ratings([4])["stdev"], 0)
         self.assertIsNone(summarize_ratings([])["mean"])
 
     def test_reject_invalid_ratings(self):
-        for value in ([True], [float("nan")], [float("inf")], [0], [6], ["3"], None, "123"):
+        for value in ([True], [float("nan")], [float("inf")], [0], [8], ["3"], None, "123"):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 summarize_ratings(value)
 

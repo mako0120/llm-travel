@@ -157,11 +157,11 @@ def validate_trip_ready(plan, use_at=None):
 
 
 def summarize_ratings(ratings):
-    """Summarize numeric ratings in [1, 5]; reject invalid input explicitly."""
+    """Summarize numeric ratings in [1, 7]; reject invalid input explicitly."""
     if not isinstance(ratings, (list, tuple)):
         raise ValueError("Ratings must be a list or tuple.")
-    if any(not _number(value) or not 1 <= value <= 5 for value in ratings):
-        raise ValueError("Ratings must be finite numbers between 1 and 5 (not booleans).")
+    if any(not _number(value) or not 1 <= value <= 7 for value in ratings):
+        raise ValueError("Ratings must be finite numbers between 1 and 7 (not booleans).")
     if not ratings:
         return {"count": 0, "mean": None, "median": None, "stdev": None}
     return {"count": len(ratings), "mean": mean(ratings), "median": median(ratings), "stdev": pstdev(ratings)}

@@ -46,31 +46,31 @@ Current checks do not cover real opening hours, origin/destination coordinates, 
 
 ## Feedback
 
-`Repository.add_feedback(plan_id, version, ratings, comment)` requires an existing exact plan revision. `version` is a positive integer (not boolean). `ratings` is a nonempty object with nonempty string keys and integer values 1–5 (booleans rejected). `comment` is a string, including empty. Example method arguments:
+`Repository.add_feedback(plan_id, version, ratings, comment)` requires an existing exact plan revision. `version` is a positive integer (not boolean). `ratings` is a nonempty object with nonempty string keys and integer values 1–7 (booleans rejected). `comment` is a string, including empty. Example method arguments:
 
 ```json
 {
   "plan_id": "synthetic-plan",
   "version": 1,
-  "ratings": {"satisfaction": 4, "travel_comfort": 3},
+  "ratings": {"satisfaction": 6, "travel_comfort": 5},
   "comment": "Synthetic observation: allow a longer break."
 }
 ```
 
 Returned feedback adds generated `id` and UTC `created_at`. Feedback is tied to the original revision even when later versions exist. Comments are data, never executable instructions.
 
-`summarize_ratings(ratings)` accepts a list or tuple of finite numbers in [1,5], rejects booleans and invalid values with `ValueError`, and returns `count`, `mean`, `median`, `stdev` (population standard deviation). For an empty list the count is 0 and the three statistics are null. This analytics helper permits fractional scores; persisted feedback currently requires integer scores. Do not pool different rating dimensions without an explicitly justified analysis.
+`summarize_ratings(ratings)` accepts a list or tuple of finite numbers in [1,7], rejects booleans and invalid values with `ValueError`, and returns `count`, `mean`, `median`, `stdev` (population standard deviation). For an empty list the count is 0 and the three statistics are null. This analytics helper permits fractional scores; persisted feedback currently requires integer scores. Do not pool different rating dimensions without an explicitly justified analysis.
 
 ## Improvement rules
 
-`Repository.propose_rule(condition, problem, improvement, evidence)` requires a nonempty object with nonempty string keys for `condition`, nonempty strings for `problem` and `improvement`, and truthy JSON-serializable `evidence`. Condition values must be JSON-serializable. Evidence structure and referenced feedback existence are **not yet enforced**. Recommended synthetic input:
+`Repository.propose_rule(condition, problem, improvement, evidence)` and `Repository.propose_rule_from_comments(condition, problem, improvement, feedback_ids)` create a pending rule only when every cited feedback record exists and has a nonempty free-text comment. Ratings are deliberately excluded: they may be displayed for monitoring but can never create, approve, or rank an improvement rule. The required evidence object has exactly two fields, `evidence_type: "qualitative_comment_only"` and a nonempty, duplicate-free `feedback_ids` array. Condition values must be JSON-serializable. Recommended synthetic input:
 
 ```json
 {
   "condition": {"region": "synthetic-region", "transport": "walk"},
   "problem": "Synthetic feedback reports insufficient rest.",
   "improvement": "Add a rest break after two visits.",
-  "evidence": [{"feedback_id": "synthetic-feedback", "note": "Synthetic reference only"}]
+  "evidence": {"evidence_type": "qualitative_comment_only", "feedback_ids": ["synthetic-feedback"]}
 }
 ```
 

@@ -9,3 +9,4 @@
 - Run `python -m unittest discover -v` and `python -m evals.run` before a PR.
 - No automatic merge or production deploy. High-risk changes require review, eval and human approval.
 - Pending improvement proposals must not affect retrieval.
+- Reusable improvement rules must cite qualitative free-text comments only. Ratings are descriptive monitoring context and must never by themselves trigger, approve, or rank a rule.
