@@ -1,0 +1,38 @@
+{
+  "name": "synthetic-optimizer-v1",
+  "cases": [
+    {
+      "id": "success", "configured": true, "matrix": [["origin", "a", 10]],
+      "candidates": [{"id": "a", "score": 5, "cost": 100, "visit_minutes": 30, "source": {"verification_status": "verified"}}],
+      "input": {"start_id": "origin", "budget": 100, "available_minutes": 40}, "expected_state": "success"
+    },
+    {
+      "id": "unconfigured", "configured": false, "matrix": [],
+      "candidates": [{"id": "a", "score": 5, "cost": 100, "visit_minutes": 30, "source": {"verification_status": "verified"}}],
+      "input": {"start_id": "origin", "budget": 100, "available_minutes": 40}, "expected_state": "unconfigured"
+    },
+    {
+      "id": "unavailable_route", "configured": true, "matrix": [],
+      "candidates": [{"id": "a", "score": 5, "cost": 100, "visit_minutes": 30, "source": {"verification_status": "verified"}}],
+      "input": {"start_id": "origin", "budget": 100, "available_minutes": 40}, "expected_state": "infeasible"
+    },
+    {
+      "id": "unverified_source", "configured": true, "matrix": [["origin", "a", 10]],
+      "candidates": [{"id": "a", "score": 5, "cost": 100, "visit_minutes": 30, "source": {"verification_status": "unverified"}}],
+      "input": {"start_id": "origin", "budget": 100, "available_minutes": 40}, "expected_state": "infeasible"
+    },
+    {
+      "id": "hard_budget", "configured": true, "matrix": [["origin", "a", 10]],
+      "candidates": [{"id": "a", "score": 5, "cost": 101, "visit_minutes": 30, "source": {"verification_status": "verified"}}],
+      "input": {"start_id": "origin", "budget": 100, "available_minutes": 40}, "expected_state": "infeasible"
+    },
+    {
+      "id": "evaluation_limit", "configured": true, "matrix": [["origin", "a", 1], ["a", "b", 1]],
+      "candidates": [
+        {"id": "a", "score": 5, "cost": 1, "visit_minutes": 1, "source": {"verification_status": "verified"}},
+        {"id": "b", "score": 4, "cost": 1, "visit_minutes": 1, "source": {"verification_status": "verified"}}
+      ],
+      "input": {"start_id": "origin", "budget": 100, "available_minutes": 40, "max_evaluations": 1}, "expected_state": "timeout"
+    }
+  ]
+}
