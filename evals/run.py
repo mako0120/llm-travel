@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from travel.domain import validate_plan
+from travel.confidence import fallback_for
 from travel.optimizer import optimize
 from travel.providers import FixtureRouteProvider
 
@@ -38,13 +39,28 @@ def optimizer_results():
             "results": results}
 
 
+def confidence_results():
+    dataset = json.loads((Path(__file__).parent / "datasets" / "confidence.json").read_text(encoding="utf-8"))
+    results = []
+    for case in dataset["cases"]:
+        actual = fallback_for(case["confidence"], required=case["required"],
+                              budget_sensitive=case["budget_sensitive"], alternative_available=case["alternative_available"])
+        results.append({"id": case["id"], "passed": actual == case["expected_fallback"],
+                        "expected_fallback": case["expected_fallback"], "actual_fallback": actual})
+    passed = sum(result["passed"] for result in results)
+    return {"dataset": dataset["name"], "cases": len(results), "passed": passed,
+            "scope": "Exact synthetic confidence-to-fallback policy agreement; does not validate real sources or traveler safety.",
+            "results": results}
+
+
 def main():
     validator = validator_results()
     optimizer = optimizer_results()
-    cases, passed = validator["cases"] + optimizer["cases"], validator["passed"] + optimizer["passed"]
+    confidence = confidence_results()
+    cases, passed = validator["cases"] + optimizer["cases"] + confidence["cases"], validator["passed"] + optimizer["passed"] + confidence["passed"]
     print(json.dumps({"synthetic": True, "cases": cases, "passed": passed,
                       "constraint_case_accuracy": passed / cases if cases else None,
-                      "suites": [validator, optimizer]}, ensure_ascii=False, indent=2))
+                      "suites": [validator, optimizer, confidence]}, ensure_ascii=False, indent=2))
     return 0 if cases and passed == cases else 1
 
 

@@ -12,5 +12,5 @@ class EvalTests(unittest.TestCase):
         with contextlib.redirect_stdout(output):
             self.assertEqual(run.main(), 0)
         report = json.loads(output.getvalue())
-        self.assertEqual((report["cases"], report["passed"]), (16, 16))
+        self.assertEqual((report["cases"], report["passed"]), (20, 20))
         self.assertTrue(all(suite["scope"] for suite in report["suites"]))

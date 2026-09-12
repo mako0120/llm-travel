@@ -18,7 +18,7 @@ def optimize(candidates, route_provider, *, start_id, budget, available_minutes,
             or not _valid_number(timeout_seconds) or timeout_seconds < 0):
         return {"state": "invalid_input", "selected": [], "reason": "invalid optimizer input"}
     started = clock()
-    selected, used_cost, used_minutes, current, evaluations = [], 0, 0, start_id, 0
+    selected, excluded, used_cost, used_minutes, current, evaluations = [], [], 0, 0, start_id, 0
     def ranking(item):
         if not isinstance(item, dict) or not _valid_number(item.get("score")):
             return (float("inf"), "")
@@ -27,21 +27,23 @@ def optimize(candidates, route_provider, *, start_id, budget, available_minutes,
     remaining = sorted(candidates, key=ranking)
     while remaining:
         if clock() - started >= timeout_seconds:
-            return {"state": "timeout", "selected": selected, "reason": "search deadline reached", "evaluations": evaluations}
+            return {"state": "timeout", "selected": selected, "excluded": excluded, "reason": "search deadline reached", "evaluations": evaluations}
         if evaluations >= max_evaluations:
-            return {"state": "timeout", "selected": selected, "reason": "search evaluation limit reached", "evaluations": evaluations}
+            return {"state": "timeout", "selected": selected, "excluded": excluded, "reason": "search evaluation limit reached", "evaluations": evaluations}
         candidate = remaining.pop(0)
         evaluations += 1
         if not isinstance(candidate, dict) or not isinstance(candidate.get("id"), str) or not candidate["id"]:
             continue
         if (type(candidate.get("visit_minutes")) is not int or candidate["visit_minutes"] < 0
                 or not _valid_number(candidate.get("cost")) or candidate["cost"] < 0
-                or not _valid_number(candidate.get("score"))
-                or candidate.get("source", {}).get("verification_status") != "verified"):
+                or not _valid_number(candidate.get("score"))):
+            continue
+        if candidate.get("source", {}).get("verification_status") != "verified":
+            excluded.append({"id": candidate["id"], "reason": "unverified_source"})
             continue
         route = route_provider.route_minutes(current, candidate["id"])
         if route.state == "unconfigured":
-            return {"state": "unconfigured", "selected": selected, "reason": "route provider is not configured", "evaluations": evaluations}
+            return {"state": "unconfigured", "selected": selected, "excluded": excluded, "reason": "route provider is not configured", "evaluations": evaluations}
         if route.state != "available":
             continue
         total_minutes = used_minutes + route.value + candidate["visit_minutes"]
@@ -51,5 +53,5 @@ def optimize(candidates, route_provider, *, start_id, budget, available_minutes,
         selected.append(dict(candidate, inbound_transit_minutes=route.value))
         used_minutes, used_cost, current = total_minutes, total_cost, candidate["id"]
     state = "success" if selected else "infeasible"
-    return {"state": state, "selected": selected, "total_minutes": used_minutes,
+    return {"state": state, "selected": selected, "excluded": excluded, "total_minutes": used_minutes,
             "total_cost": used_cost, "evaluations": evaluations}

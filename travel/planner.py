@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from decimal import Decimal
+from travel.confidence import CONFIDENCE_LEVELS, cost_presentation, display_label
 
 
 START_PROMPT = "AI旅行計画を作成しますか？"
@@ -102,14 +103,24 @@ def render_model_route(rows, cost_totals):
         if not isinstance(row, dict):
             raise ValueError("each route row must be an object")
         value = lambda key: str(row.get(key, "未確認"))
+        confidence = row.get("confidence", "unknown")
+        if confidence not in CONFIDENCE_LEVELS:
+            raise ValueError("route row confidence is invalid")
+        notes = value("notes")
+        if confidence in ("low", "unknown"):
+            notes = f"{notes}（{display_label(confidence)}）"
         lines.append("時間：{0}｜スケジュール：{1}｜場所：{2}｜費用：{3}｜備考：{4}｜移動ルート：{5}".format(
-            value("time"), value("schedule"), value("place"), value("cost"), value("notes"), value("route")))
+            value("time"), value("schedule"), value("place"), value("cost"), notes, value("route")))
     amounts = []
     for key in ("transport", "lodging", "food", "admission"):
         amount = cost_totals.get(key, 0)
         if not isinstance(amount, (int, float)) or isinstance(amount, bool):
             raise ValueError("cost totals must be numeric")
         amounts.append(Decimal(str(amount)))
-    lines.append("合計費用：{0}円（移動費：{1}円、宿泊費：{2}円、食費：{3}円、入場料：{4}円）".format(
-        sum(amounts), *amounts))
+    confidences = cost_totals.get("confidence", {})
+    if not isinstance(confidences, dict):
+        raise ValueError("cost confidence must be an object")
+    label = cost_presentation([{"confidence": confidences.get(key, "unknown")} for key in ("transport", "lodging", "food", "admission")])
+    lines.append("{0}費用：{1}円（移動費：{2}円、宿泊費：{3}円、食費：{4}円、入場料：{5}円）".format(
+        label, sum(amounts), *amounts))
     return "\n".join(lines)

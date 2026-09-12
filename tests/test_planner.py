@@ -26,10 +26,19 @@ class PlannerConversationTests(unittest.TestCase):
         self.assertIn("創作", PLANNER_SYSTEM_PROMPT)
 
     def test_model_route_has_requested_fields_and_total(self):
-        output = render_model_route([{"time": "09:00", "schedule": "移動", "place": "大阪駅", "cost": "800円", "notes": "王道", "route": "JR 京都線"}],
-                                    {"transport": 800, "lodging": 10000, "food": 2000, "admission": 500})
+        output = render_model_route([{"time": "09:00", "schedule": "移動", "place": "大阪駅", "cost": "800円", "notes": "王道", "route": "JR 京都線", "confidence": "high"}],
+                                    {"transport": 800, "lodging": 10000, "food": 2000, "admission": 500,
+                                     "confidence": {"transport": "high", "lodging": "high", "food": "high", "admission": "high"}})
         self.assertIn("時間：09:00｜スケジュール：移動｜場所：大阪駅", output)
         self.assertIn("合計費用：13300円", output)
+
+    def test_model_route_labels_low_confidence_and_estimated_cost(self):
+        output = render_model_route([{"time": "未確認", "confidence": "low"}], {
+            "transport": 1, "lodging": 2, "food": 3, "admission": 4,
+            "confidence": {"transport": "high", "lodging": "unknown", "food": "high", "admission": "high"},
+        })
+        self.assertIn("情報未確定", output)
+        self.assertIn("概算費用：10円", output)
 
     def test_ready_session_creates_a_data_only_generation_time_research_request(self):
         session = PlannerSession(started=True, step=9, answers={key: "x" for key, _ in __import__("travel.planner", fromlist=["QUESTIONS"]).QUESTIONS})
