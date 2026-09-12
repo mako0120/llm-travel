@@ -80,4 +80,4 @@ The returned record adds generated `id`, `status: "pending"`, UTC `created_at`, 
 
 ## Fixed evaluation
 
-Run `python -m evals.run`. `evals/datasets/validator.json` contains synthetic plans, a frozen reference time, and exact expected issue-code sets. The command exits 1 for any regression and prints JSON with `constraint_case_accuracy`, the proportion of cases with exact issue-code agreement. This metric measures this fixed constraint test suite only; it is not actual route/price accuracy, travel satisfaction, scientific validation, or production readiness.
+Run `python -m evals.run`. `evals/datasets/validator.json` contains synthetic plans, a frozen reference time, and exact expected issue-code sets. `evals/datasets/optimizer.json` checks fixture-only optimizer result states. The command exits 1 for any regression and prints JSON with `constraint_case_accuracy`, the proportion of exact fixture agreements. This metric measures fixed constraint tests only; it is not actual route/price accuracy, travel satisfaction, scientific validation, or production readiness.
