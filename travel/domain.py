@@ -19,14 +19,17 @@ def _number(value):
 def _timestamp(value):
     if not isinstance(value, str):
         return None
+    if "Z" in value and not value.endswith("Z"):
+        return None
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
+        parsed = datetime.fromisoformat(normalized)
         return parsed if parsed.utcoffset() is not None else None
     except (ValueError, OverflowError):
         return None
 
 
-def validate_plan(plan, now=None):
+def validate_plan(plan, now=None, require_verified=False):
     """Return issues without accepting missing evidence as valid.
 
     Required fields: start/end (aware ISO timestamps), budget,
@@ -130,6 +133,11 @@ def validate_plan(plan, now=None):
                 add("invalid_source_expiry", path + ".source.expires_at", "A timezone-aware source expiry is required.")
             elif expiry <= now:
                 add("expired_source", path + ".source.expires_at", "Source evidence has expired.")
+            status = source.get("verification_status", "unverified")
+            if status not in ("verified", "unverified"):
+                add("invalid_source_status", path + ".source.verification_status", "Source verification status is invalid.")
+            elif require_verified and status != "verified":
+                add("unverified_source", path + ".source.verification_status", "Trip-ready plans require verified source evidence.")
     if budget is not None:
         # Preserve decimal currency boundaries across both tiny and large finite
         # floats. Precision covers the full float exponent span plus carry digits.
@@ -141,6 +149,11 @@ def validate_plan(plan, now=None):
         if identifier not in seen:
             add("missing_required", "required_activity_ids", f"Required activity missing: {identifier}")
     return issues
+
+
+def validate_trip_ready(plan, use_at=None):
+    """Revalidate supplied plan evidence at presentation time, not save time."""
+    return validate_plan(plan, now=use_at, require_verified=True)
 
 
 def summarize_ratings(ratings):

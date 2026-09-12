@@ -8,7 +8,7 @@ Current scope is local single-user synthetic-data validation and persistence. No
 
 ## Runtime
 CLI → domain validator → SQLite repository → version-linked feedback → statistics → pending rule → explicit operator approval → metadata matching.
-The validator checks supplied evidence timestamps; it cannot establish that a URL's contents are true. Operator-supplied sources are not live verified. No feasible plan is generated in this slice.
+The validator checks supplied evidence timestamps; it cannot establish that a URL's contents are true. Provider contracts distinguish `unconfigured`, `unavailable`, `invalid`, and `available`; a trip-ready validation requires explicitly verified and non-expired evidence at time of use. Fixture providers never fetch URLs. The bounded deterministic optimizer only selects candidates with supplied verified fixture evidence and never relaxes hard constraints.
 
 ## Target
 Modular Python backend with provider adapters; PostgreSQL for multi-user persistence; independent optimizer and validator; web UI after API contracts. SQL retrieval precedes any vector index. Solver receives verified travel-time matrices and hard constraints; infeasibility is returned explicitly.

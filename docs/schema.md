@@ -18,6 +18,7 @@ All examples below are **synthetic**. `example.org` is placeholder provenance, n
 | `activities[].transit_minutes` | Finite nonnegative number; required travel **before** this activity, fitting the gap from previous activity end or plan start |
 | `activities[].source.url` | HTTP(S) URL with hostname; only URL syntax is checked |
 | `activities[].source.expires_at` | Aware ISO datetime strictly after validation reference time |
+| `activities[].source.verification_status` | Optional in ordinary validation; `verified` or `unverified`. Missing is unverified. `validate_trip_ready` requires `verified`. |
 
 ```json
 {
@@ -41,7 +42,7 @@ All examples below are **synthetic**. `example.org` is placeholder provenance, n
 
 The example passes at frozen `now=2026-09-12T00:00:00Z`; its provenance expires and is intentionally rejected after expiry. Storage `Repository.create_plan(plan)` adds `id` (UUID when omitted/empty) and an increasing `version`; supplied version is replaced. Reusing an ID creates a new immutable revision. Storage does **not** run domain validation itself: callers must validate before saving. Stored documents may include additional application metadata.
 
-Current checks do not cover real opening hours, origin/destination coordinates, return travel, actual route availability, weather, currency consistency, reservations or independent source verification. Expiry means fresh at validation time, not guaranteed fresh through the trip.
+Current checks do not cover real opening hours, origin/destination coordinates, return travel, actual route availability, weather, currency consistency, reservations or independent source verification. `validate_trip_ready(plan, use_at)` rechecks expiry and requires explicitly verified evidence at presentation time; `verified` is a provider assertion that must eventually be backed by a source policy or retrieved snapshot.
 
 ## Feedback
 
