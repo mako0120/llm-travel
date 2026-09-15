@@ -7,6 +7,7 @@ from urllib.parse import parse_qs
 from wsgiref.simple_server import make_server
 from travel.storage import Repository
 from travel.planner import PlannerSession, next_turn, research_request
+from travel.providers import public_provider_catalog
 
 
 ROOT = Path(__file__).resolve().parents[1] / "web"
@@ -55,6 +56,8 @@ def _research_status(run):
 def application(environ, start_response):
     path = environ.get("PATH_INFO", "/")
     method = environ.get("REQUEST_METHOD", "GET")
+    if path == "/api/providers" and method == "GET":
+        return _json_response(start_response, {"providers": public_provider_catalog()})
     if path == "/api/planner" and method == "POST":
         data = _read_json_body(environ)
         if not isinstance(data, dict):
