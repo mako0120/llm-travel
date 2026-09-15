@@ -22,3 +22,9 @@ python scripts/github_webhook_bridge.py
 ```
 
 ローカルホストは GitHub から直接届かないため、公開 URL から `http://127.0.0.1:8766/github-webhook` へ安全に中継するトンネルが必要です。中継 URL を GitHub リポジトリの Webhooks に登録し、イベントは `Issue comments`、Content type は `application/json`、Secret は同じ値にします。公開中継を使う場合は、Issue コメント本文が中継事業者を通過する点を理解してから使います。
+
+`.env` を設定済みなら、次で受信サーバーと Smee 中継をバックグラウンド起動できます。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/start_webhook_bridge.ps1
+```
