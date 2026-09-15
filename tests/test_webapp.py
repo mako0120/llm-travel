@@ -86,8 +86,14 @@ class WebAppTests(unittest.TestCase):
             finally:
                 repo.close()
             option = {"spot": "Synthetic place", "reason": "Synthetic evidence", "evidence_id": evidence["id"]}
-            proposal = {"primary": [option], "spot_alternatives": [dict(option, spot="Alternative")],
-                        "rainy_day_alternatives": [dict(option, spot="Rain alternative")],
+            primary = {"time": "10:00", "schedule": "Visit", "place": "Synthetic place", "label": "王道",
+                       "transport_mode": "公共交通機関", "transport_duration_minutes": 20, "route": "Synthetic route", "cost": 100,
+                       "line_name": "Synthetic line", "station_name": "Synthetic station", "departure_time": "09:40", "evidence_id": evidence["id"]}
+            food = {"name": "Synthetic restaurant", "rating": 4.5, "review_count": 10, "specialty": "Synthetic food", "evidence_id": evidence["id"]}
+            lodging = {"name": "Synthetic hotel", "nightly_cost": 1000, "convenience": "station", "comfort": "quiet", "evidence_id": evidence["id"]}
+            proposal = {"primary": [primary], "spot_alternatives": [dict(option, spot="Alternative")],
+                        "rainy_day_alternatives": [dict(option, spot="Rain alternative")], "food_options": [food, dict(food, name="Second restaurant")],
+                        "lodging_options": [lodging], "cost_totals": {"transport": 100, "lodging": 1000, "food": 500, "admission": 0},
                         "reviews": {"claude": {"decision": "approved", "rationale": "Reviewed"},
                                     "codex": {"decision": "approved", "rationale": "Validated"}}}
             seen, body = self.post(f"/api/research/{run['id']}/itinerary", proposal)
