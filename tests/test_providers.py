@@ -1,7 +1,9 @@
 import unittest
+from datetime import datetime, timezone
 
 from travel.providers import (GOOGLE_PLACES_TEXT_SEARCH_URL, GOOGLE_ROUTES_URL,
-                               GoogleMapsAdapter, public_provider_catalog, provider_catalog)
+                               GoogleMapsAdapter, ProviderResult, google_places_evidence,
+                               public_provider_catalog, provider_catalog)
 
 
 class ProviderCatalogTests(unittest.TestCase):
@@ -45,3 +47,19 @@ class ProviderCatalogTests(unittest.TestCase):
         self.assertEqual(captured["payload"]["travelMode"], "TRANSIT")
         with self.assertRaises(ValueError):
             GoogleMapsAdapter("key", transport).compute_route("A", "B", "FLY")
+
+    def test_google_places_are_unverified_evidence_until_reviewed(self):
+        result = ProviderResult("available", {"places": [
+            {"id": "place/1", "displayName": {"text": "候補店"}, "formattedAddress": "京都",
+             "rating": 4.4, "userRatingCount": 12, "googleMapsUri": "https://maps.example/place/1"},
+            {"displayName": {"text": "URLなし"}},
+        ]}, provider="google_maps", version="v1")
+        items = google_places_evidence(result, datetime(2030, 1, 1, tzinfo=timezone.utc))
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["verification_status"], "unverified")
+        self.assertEqual(items[0]["agent"], "provider")
+        self.assertEqual(items[0]["retrieved_at"], "2030-01-01T00:00:00Z")
+        self.assertEqual(items[0]["expires_at"], "2030-01-02T00:00:00Z")
+
+    def test_non_available_google_result_creates_no_evidence(self):
+        self.assertEqual(google_places_evidence(ProviderResult("unconfigured", provider="google_maps")), [])

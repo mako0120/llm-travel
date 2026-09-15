@@ -1,6 +1,7 @@
 """Provider contracts and a permit-aware catalog. No network access occurs here."""
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 import json
 from typing import Mapping
 from urllib.error import HTTPError, URLError
@@ -152,6 +153,42 @@ class GoogleMapsAdapter:
              "travelMode": travel_mode, "languageCode": language_code.strip()},
         )
 
+
+def google_places_evidence(result, retrieved_at=None, freshness_hours=24):
+    """Convert a Places response to unverified evidence, never itinerary facts.
+
+    Confirmation remains an explicit research-review step.  This transformer
+    neither upgrades verification state nor invents a missing place URL.
+    """
+    if not isinstance(result, ProviderResult) or result.provider != "google_maps":
+        raise ValueError("result must be a Google Maps ProviderResult")
+    if result.state != "available":
+        return []
+    if not isinstance(result.value, dict) or not isinstance(result.value.get("places", []), list):
+        raise ValueError("available Places result must contain a places list")
+    if type(freshness_hours) is not int or not 1 <= freshness_hours <= 168:
+        raise ValueError("freshness_hours must be an integer from 1 to 168")
+    moment = retrieved_at or datetime.now(timezone.utc)
+    if not isinstance(moment, datetime) or moment.tzinfo is None:
+        raise ValueError("retrieved_at must be a timezone-aware datetime")
+    retrieved = moment.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    expires = (moment.astimezone(timezone.utc) + timedelta(hours=freshness_hours)).isoformat().replace("+00:00", "Z")
+    evidence = []
+    for place in result.value["places"]:
+        if not isinstance(place, dict):
+            continue
+        name = place.get("displayName")
+        if isinstance(name, dict):
+            name = name.get("text")
+        url = place.get("googleMapsUri")
+        if not isinstance(name, str) or not name.strip() or not isinstance(url, str) or not url.strip():
+            continue
+        facts = {key: place[key] for key in ("id", "formattedAddress", "rating", "userRatingCount", "googleMapsUri")
+                 if key in place}
+        evidence.append({"agent": "provider", "source_type": "Google", "url": url,
+                         "title": name.strip(), "facts": facts, "retrieved_at": retrieved,
+                         "expires_at": expires, "verification_status": "unverified"})
+    return evidence
 
 class FixtureRouteProvider:
     """A deterministic route matrix used only for tests and offline development."""
