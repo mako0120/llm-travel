@@ -4,6 +4,8 @@ __pycache__/
 .env
 .env.*
 !.env.example
+data/webhook-inbox/
+artifacts/webhook-runs/
 data/
 *.db
 *.sqlite*
