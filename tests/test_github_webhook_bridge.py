@@ -22,7 +22,8 @@ class GitHubWebhookBridgeTests(unittest.TestCase):
 
     def payload(self, body="## Claude → Codex\nレビューです"):
         return {"action": "created", "repository": {"full_name": "mako0120/llm-travel"},
-                "issue": {"number": 16}, "comment": {"id": 123, "html_url": "https://example.test/c/123", "body": body}}
+                "issue": {"number": 16}, "comment": {"id": 123, "html_url": "https://example.test/c/123", "body": body,
+                                                           "user": {"login": "mako0120"}}}
 
     def test_signed_claude_comment_is_queued(self):
         raw = json.dumps(self.payload()).encode()
@@ -43,6 +44,14 @@ class GitHubWebhookBridgeTests(unittest.TestCase):
 
     def test_unmarked_or_other_repo_comment_is_ignored(self):
         raw = json.dumps(self.payload("ordinary user comment")).encode()
+        with tempfile.TemporaryDirectory() as tmp:
+            status, result = bridge.handle(raw, self.signed_headers(raw), self.secret, tmp)
+            self.assertEqual((status, result["state"]), (202, "ignored"))
+
+    def test_untrusted_commenter_is_ignored_even_with_marker(self):
+        payload = self.payload()
+        payload["comment"]["user"]["login"] = "untrusted"
+        raw = json.dumps(payload).encode()
         with tempfile.TemporaryDirectory() as tmp:
             status, result = bridge.handle(raw, self.signed_headers(raw), self.secret, tmp)
             self.assertEqual((status, result["state"]), (202, "ignored"))

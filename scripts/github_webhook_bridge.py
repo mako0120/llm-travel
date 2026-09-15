@@ -20,6 +20,7 @@ from uuid import uuid4
 
 REPOSITORY = "mako0120/llm-travel"
 COMMENT_MARKER = "Claude → Codex"
+DEFAULT_ALLOWED_LOGINS = frozenset({"mako0120"})
 
 
 def _valid_signature(secret, raw, supplied):
@@ -29,7 +30,7 @@ def _valid_signature(secret, raw, supplied):
     return hmac.compare_digest(expected, supplied)
 
 
-def eligible_comment(payload):
+def eligible_comment(payload, allowed_logins=DEFAULT_ALLOWED_LOGINS):
     """Return a safe event summary, or None when this event must be ignored."""
     if not isinstance(payload, dict):
         return None
@@ -37,7 +38,9 @@ def eligible_comment(payload):
         return None
     comment = payload.get("comment", {})
     body = comment.get("body")
-    if not isinstance(body, str) or COMMENT_MARKER not in body:
+    login = comment.get("user", {}).get("login")
+    if (not isinstance(body, str) or COMMENT_MARKER not in body
+            or not isinstance(login, str) or login not in allowed_logins):
         return None
     issue = payload.get("issue", {})
     if not isinstance(issue.get("number"), int) or not isinstance(comment.get("id"), int):
@@ -70,14 +73,15 @@ change secrets, or make external purchases. Report findings in a PR or Issue com
         ), prompt.encode("utf-8")
 
 
-def handle(raw, headers, secret, inbox, workspace=None, output_dir=None, autorun=False):
+def handle(raw, headers, secret, inbox, workspace=None, output_dir=None, autorun=False,
+           allowed_logins=DEFAULT_ALLOWED_LOGINS):
     """Pure-ish handler used by the HTTP server and tests."""
     if not _valid_signature(secret, raw, headers.get("X-Hub-Signature-256")):
         return 401, {"error": "invalid signature"}
     if headers.get("X-GitHub-Event") != "issue_comment":
         return 202, {"state": "ignored"}
     try:
-        event = eligible_comment(json.loads(raw.decode("utf-8")))
+        event = eligible_comment(json.loads(raw.decode("utf-8")), allowed_logins)
     except (UnicodeDecodeError, json.JSONDecodeError):
         return 400, {"error": "invalid JSON"}
     if event is None:
@@ -92,7 +96,7 @@ def handle(raw, headers, secret, inbox, workspace=None, output_dir=None, autorun
     return 202, result
 
 
-def make_handler(secret, inbox, workspace, output_dir, autorun):
+def make_handler(secret, inbox, workspace, output_dir, autorun, allowed_logins):
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
             if self.path != "/github-webhook":
@@ -103,7 +107,7 @@ def make_handler(secret, inbox, workspace, output_dir, autorun):
             except ValueError:
                 length = 0
             raw = self.rfile.read(length)
-            status, body = handle(raw, self.headers, secret, inbox, workspace, output_dir, autorun)
+            status, body = handle(raw, self.headers, secret, inbox, workspace, output_dir, autorun, allowed_logins)
             encoded = json.dumps(body).encode("utf-8")
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
@@ -124,8 +128,9 @@ def main():
     inbox = Path(os.environ.get("LLM_TRAVEL_WEBHOOK_INBOX", workspace / "data" / "webhook-inbox"))
     output_dir = Path(os.environ.get("LLM_TRAVEL_WEBHOOK_OUTPUT", workspace / "artifacts" / "webhook-runs"))
     autorun = os.environ.get("CODEX_WEBHOOK_AUTORUN") == "1"
+    allowed_logins = frozenset(filter(None, os.environ.get("LLM_TRAVEL_WEBHOOK_ALLOWED_LOGINS", "mako0120").split(",")))
     server = ThreadingHTTPServer(("127.0.0.1", int(os.environ.get("LLM_TRAVEL_WEBHOOK_PORT", "8766"))),
-                                 make_handler(secret, inbox, workspace, output_dir, autorun))
+                                 make_handler(secret, inbox, workspace, output_dir, autorun, allowed_logins))
     print(f"GitHub webhook bridge: http://127.0.0.1:{server.server_port}/github-webhook; autorun={autorun}")
     server.serve_forever()
 

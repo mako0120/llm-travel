@@ -8,6 +8,7 @@
 2. リポジトリが `mako0120/llm-travel` である。
 3. `issue_comment` の `created` イベントである。
 4. 本文に `Claude → Codex` がある。
+5. コメント投稿者が `LLM_TRAVEL_WEBHOOK_ALLOWED_LOGINS` に含まれる。
 
 合格したイベントは `data/webhook-inbox` に JSON として保存されます。`CODEX_WEBHOOK_AUTORUN=1` のときだけ、固定の安全プロンプトで `codex exec` を別 worktree に起動します。コメント本文は設計入力として渡すだけで、シェルとして実行しません。自動マージ、デプロイ、秘密情報変更はプロンプトで禁止されています。
 

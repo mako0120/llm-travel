@@ -9,7 +9,7 @@ Get-Content -LiteralPath $ConfigPath | ForEach-Object {
     $key, $value = $_ -split '=', 2
     if ($key -and $value) { $settings[$key] = $value }
 }
-foreach ($key in 'LLM_TRAVEL_WEBHOOK_SECRET', 'LLM_TRAVEL_WEBHOOK_PORT', 'LLM_TRAVEL_WORKSPACE', 'CODEX_WEBHOOK_AUTORUN', 'LLM_TRAVEL_SMEE_URL') {
+foreach ($key in 'LLM_TRAVEL_WEBHOOK_SECRET', 'LLM_TRAVEL_WEBHOOK_PORT', 'LLM_TRAVEL_WORKSPACE', 'CODEX_WEBHOOK_AUTORUN', 'LLM_TRAVEL_SMEE_URL', 'LLM_TRAVEL_WEBHOOK_ALLOWED_LOGINS') {
     if (-not $settings[$key]) { throw "Missing $key in $ConfigPath" }
 }
 foreach ($entry in $settings.GetEnumerator()) { Set-Item -Path "env:$($entry.Key)" -Value $entry.Value }
