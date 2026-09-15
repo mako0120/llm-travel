@@ -6,6 +6,7 @@ import threading
 from datetime import datetime, timezone
 from uuid import uuid4
 import hashlib
+from travel.itinerary import evidence_ids, validate_detailed_itinerary
 
 
 def _now():
@@ -412,9 +413,9 @@ class Repository:
         _identifier(run_id)
         if not isinstance(proposal, dict):
             raise ValueError("itinerary proposal must be an object")
-        required_lists = ("primary", "spot_alternatives", "rainy_day_alternatives")
-        if any(not isinstance(proposal.get(key), list) or not proposal[key] for key in required_lists):
-            raise ValueError("primary, spot alternatives, and rainy-day alternatives are required")
+        issues = validate_detailed_itinerary(proposal)
+        if issues:
+            raise ValueError("; ".join(issues))
         reviews = proposal.get("reviews")
         if not isinstance(reviews, dict) or set(reviews) != {"claude", "codex"}:
             raise ValueError("itinerary requires separate claude and codex reviews")
@@ -422,18 +423,11 @@ class Repository:
             if (not isinstance(review, dict) or review.get("decision") != "approved"
                     or not isinstance(review.get("rationale"), str) or not review["rationale"].strip()):
                 raise ValueError(f"{agent} must provide an approved review with rationale")
-        items = [item for key in required_lists for item in proposal[key]]
-        if any(not isinstance(item, dict) or not all(isinstance(item.get(key), str) and item[key].strip()
-                                                    for key in ("spot", "reason", "evidence_id")) for item in items):
-            raise ValueError("each itinerary option needs spot, reason, and evidence_id")
-        evidence_ids = {item["evidence_id"] for item in items}
+        cited_evidence_ids = evidence_ids(proposal)
         verified_ids = {item["id"] for item in self.fresh_verified_evidence(run_id)}
-        if not evidence_ids <= verified_ids:
+        if not cited_evidence_ids <= verified_ids:
             raise ValueError("every itinerary option needs fresh verified evidence from this research run")
-        record = {"id": str(uuid4()), "run_id": run_id, "primary": proposal["primary"],
-                  "spot_alternatives": proposal["spot_alternatives"],
-                  "rainy_day_alternatives": proposal["rainy_day_alternatives"], "reviews": reviews,
-                  "created_at": _now()}
+        record = dict(proposal, id=str(uuid4()), run_id=run_id, created_at=_now())
         with self._lock, self._connection:
             self._connection.execute("INSERT INTO itinerary_proposals VALUES (?, ?, ?, ?)",
                                      (record["id"], run_id, _json(record), record["created_at"]))
