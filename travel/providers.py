@@ -1,7 +1,10 @@
 """Provider contracts and a permit-aware catalog. No network access occurs here."""
 
 from dataclasses import dataclass
+import json
 from typing import Mapping
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 
 @dataclass(frozen=True)
@@ -84,6 +87,70 @@ def public_provider_catalog():
              "purposes": list(item.purposes), "setup": list(item.setup),
              "documentation_url": item.documentation_url, "constraint": item.constraint}
             for item in provider_catalog()]
+
+
+GOOGLE_PLACES_TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
+GOOGLE_ROUTES_URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
+
+
+def _post_json(url, headers, payload, timeout_seconds=15):
+    """Minimal standard-library transport. The caller supplies the credential."""
+    request = Request(url, data=json.dumps(payload).encode("utf-8"),
+                      headers=headers, method="POST")
+    with urlopen(request, timeout=timeout_seconds) as response:  # nosec B310: fixed official URLs
+        return json.loads(response.read().decode("utf-8"))
+
+
+class GoogleMapsAdapter:
+    """Official Google Maps REST requests with injected transport for testing.
+
+    The key exists only in this object and is sent in a request header. It is
+    never returned, persisted, or written to a log by this module.
+    """
+
+    def __init__(self, api_key=None, transport=_post_json):
+        self._api_key = api_key if isinstance(api_key, str) and api_key.strip() else None
+        self._transport = transport
+
+    def _call(self, url, field_mask, payload):
+        if self._api_key is None:
+            return ProviderResult("unconfigured", provider="google_maps", version="v1")
+        headers = {"Content-Type": "application/json", "X-Goog-Api-Key": self._api_key,
+                   "X-Goog-FieldMask": field_mask}
+        try:
+            value = self._transport(url, headers, payload)
+        except (HTTPError, URLError, TimeoutError, ValueError, OSError):
+            return ProviderResult("unavailable", provider="google_maps", version="v1")
+        if not isinstance(value, dict):
+            return ProviderResult("invalid", provider="google_maps", version="v1")
+        return ProviderResult("available", value, provider="google_maps", version="v1")
+
+    def search_places(self, text_query, language_code="ja", max_result_count=10):
+        if not isinstance(text_query, str) or not text_query.strip():
+            raise ValueError("text_query must be nonempty")
+        if not isinstance(language_code, str) or not language_code.strip():
+            raise ValueError("language_code must be nonempty")
+        if type(max_result_count) is not int or not 1 <= max_result_count <= 20:
+            raise ValueError("max_result_count must be an integer from 1 to 20")
+        return self._call(
+            GOOGLE_PLACES_TEXT_SEARCH_URL,
+            "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.googleMapsUri",
+            {"textQuery": text_query.strip(), "languageCode": language_code.strip(),
+             "maxResultCount": max_result_count},
+        )
+
+    def compute_route(self, origin, destination, travel_mode="TRANSIT", language_code="ja"):
+        if not all(isinstance(value, str) and value.strip()
+                   for value in (origin, destination, travel_mode, language_code)):
+            raise ValueError("origin, destination, travel_mode and language_code must be nonempty")
+        if travel_mode not in {"TRANSIT", "DRIVE", "WALK", "BICYCLE", "TWO_WHEELER"}:
+            raise ValueError("travel_mode is not supported")
+        return self._call(
+            GOOGLE_ROUTES_URL,
+            "routes.duration,routes.distanceMeters,routes.legs.steps.transitDetails,routes.legs.localizedValues",
+            {"origin": {"address": origin.strip()}, "destination": {"address": destination.strip()},
+             "travelMode": travel_mode, "languageCode": language_code.strip()},
+        )
 
 
 class FixtureRouteProvider:
