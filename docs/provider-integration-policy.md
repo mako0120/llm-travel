@@ -20,6 +20,8 @@ Google Places Text Search はテキスト検索と location bias、評価条件�
 
 Google Maps Adapter は、明示的に渡された API キーがある場合だけ、公式の Places Text Search と Routes Compute Routes へ POST します。未設定時は通信せず `unconfigured` を返します。Places は候補名・住所・評価・口コミ数・Google Maps URLだけ、Routes は所要時間・距離・公共交通の区間だけを field mask で要求します。各応答は候補表示前に `ResearchEvidence` の検証・鮮度ゲートを通します。
 
+Places の変換器は結果を `verification_status: unverified` の `ResearchEvidence` としてのみ作ります。取得時刻と最大24時間の期限を付けますが、これだけで営業・価格・予約可否・時刻表の確認済みにはなりません。Claudeの候補レビューと、必要に応じた事業者公式根拠の確認後にだけ `verified` として旅程候補へ利用できます。
+
 ## 設定の境界
 
 プロトタイプにはキーやトークンをコミットしません。実装時はローカルまたは承認済みのシークレットストアから短時間だけ読み、ログ・DB・API レスポンスには値を残しません。GitHub 書き込みやデプロイ権限を旅行アプリの実行環境へ渡しません。
