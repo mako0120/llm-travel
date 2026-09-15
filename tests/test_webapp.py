@@ -22,6 +22,17 @@ class WebAppTests(unittest.TestCase):
     def test_planner_api_collects_questions(self):
         _,body=self.post('/api/planner',{'session_id':'test','message':'はい'})
         self.assertEqual(json.loads(body)['step'],1)
+
+    def test_provider_catalog_is_public_metadata_without_credentials(self):
+        seen, body = self.request('/api/providers')
+        payload = json.loads(body)
+        self.assertEqual(seen[0], '200 OK')
+        providers = {provider['id']: provider for provider in payload['providers']}
+        self.assertEqual(providers['tabelog']['state'], 'official_connection_required')
+        self.assertEqual(providers['tiktok']['state'], 'approval_required')
+        self.assertIn('Google Maps Places API', providers['google_places']['name'])
+        rendered = json.dumps(payload)
+        self.assertNotIn('API_KEY', rendered)
     def test_complete_conversation_creates_requested_research_run(self):
         session='ready-test';self.post('/api/planner',{'session_id':session,'message':'はい'})
         for answer in ['大阪','京都','1','グルメ','両方','50000','ホテル','公共交通','なし']:
