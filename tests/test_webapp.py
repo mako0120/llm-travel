@@ -66,13 +66,36 @@ class WebAppTests(unittest.TestCase):
                         "verification_status": "verified"}
             seen, body = self.post(f"/api/research/{run['id']}/evidence", evidence)
             self.assertEqual(seen[0], "200 OK")
-            self.assertEqual(json.loads(body)["state"], "researching")
+            received = json.loads(body)
+            self.assertEqual(received["state"], "researching")
             seen, body = self.post(f"/api/research/{run['id']}/complete", {"state": "ready"})
             self.assertEqual(seen[0], "200 OK")
             self.assertEqual(json.loads(body)["research"]["state"], "ready")
             seen, body = self.request(f"/api/research/{run['id']}")
             self.assertEqual(seen[0], "200 OK")
             self.assertEqual(json.loads(body)["research"]["fresh_verified_evidence_count"], 1)
+
+    def test_itinerary_requires_two_real_reviews_and_evidence_for_alternatives(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict("os.environ", {"LLM_TRAVEL_DB": str(Path(tmp) / "travel.sqlite3")}):
+            repo = travel.webapp._repository()
+            try:
+                run = repo.create_research_run("profile-test", {"destination": "京都"}, [])
+                evidence = repo.record_evidence(run["id"], {"agent": "codex", "source_type": "official", "url": "https://example.org/place",
+                    "title": "Synthetic place", "facts": {}, "retrieved_at": "2030-01-01T00:00:00Z", "expires_at": "2030-01-02T00:00:00Z", "verification_status": "verified"})
+                repo.complete_research_run(run["id"], "ready")
+            finally:
+                repo.close()
+            option = {"spot": "Synthetic place", "reason": "Synthetic evidence", "evidence_id": evidence["id"]}
+            proposal = {"primary": [option], "spot_alternatives": [dict(option, spot="Alternative")],
+                        "rainy_day_alternatives": [dict(option, spot="Rain alternative")],
+                        "reviews": {"claude": {"decision": "approved", "rationale": "Reviewed"},
+                                    "codex": {"decision": "approved", "rationale": "Validated"}}}
+            seen, body = self.post(f"/api/research/{run['id']}/itinerary", proposal)
+            self.assertEqual(seen[0], "200 OK")
+            self.assertEqual(json.loads(body)["itinerary"]["rainy_day_alternatives"][0]["spot"], "Rain alternative")
+            seen, body = self.request(f"/api/research/{run['id']}/itinerary")
+            self.assertEqual(seen[0], "200 OK")
+            self.assertEqual(json.loads(body)["itinerary"]["spot_alternatives"][0]["spot"], "Alternative")
         seen = []
         body = b''.join(application({'PATH_INFO': '/api/planner', 'REQUEST_METHOD': 'POST',
                                      'CONTENT_LENGTH': '7', 'wsgi.input': io.BytesIO(b'{broken')},
