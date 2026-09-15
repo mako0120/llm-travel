@@ -93,7 +93,13 @@ def application(environ, start_response):
                 if run is None:
                     return _json_response(start_response, {"error": "research run not found"}, "404 Not Found")
                 run["fresh_verified_evidence"] = repo.fresh_verified_evidence(run_id)
-                return _json_response(start_response, {"research": _research_status(run), "evidence": run["evidence"]})
+                return _json_response(start_response, {"research": _research_status(run), "evidence": run["evidence"],
+                                                       "itinerary": repo.latest_itinerary_proposal(run_id)})
+            if method == "GET" and action == "itinerary":
+                itinerary = repo.latest_itinerary_proposal(run_id)
+                if itinerary is None:
+                    return _json_response(start_response, {"error": "itinerary is not ready"}, "404 Not Found")
+                return _json_response(start_response, {"itinerary": itinerary})
             data = _read_json_body(environ)
             if not isinstance(data, dict):
                 return _bad_request(start_response, "request body must be a JSON object")
@@ -104,6 +110,9 @@ def application(environ, start_response):
                 run = repo.complete_research_run(run_id, data.get("state"))
                 run["fresh_verified_evidence"] = repo.fresh_verified_evidence(run_id)
                 return _json_response(start_response, {"research": _research_status(run)})
+            if method == "POST" and action == "itinerary":
+                itinerary = repo.record_itinerary_proposal(run_id, data)
+                return _json_response(start_response, {"itinerary": itinerary})
             return _json_response(start_response, {"error": "research endpoint not found"}, "404 Not Found")
         except ValueError as exc:
             return _bad_request(start_response, str(exc))
