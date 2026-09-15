@@ -31,9 +31,31 @@ def _bad_request(start_response, message):
     return [json.dumps({"error": message}, ensure_ascii=False).encode("utf-8")]
 
 
+def _repository():
+    db_path = os.environ.get("LLM_TRAVEL_DB", "data/travel.sqlite3")
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    return Repository(db_path)
+
+
+def _json_response(start_response, payload, status="200 OK"):
+    start_response(status, [("Content-Type", "application/json; charset=utf-8")])
+    return [json.dumps(payload, ensure_ascii=False).encode("utf-8")]
+
+
+def _research_status(run):
+    return {"run_id": run["id"], "state": run["state"],
+            "fresh_verified_evidence_count": len(run.get("fresh_verified_evidence", [])),
+            "message": {"requested": "情報収集の準備中です。未確認の旅行情報は表示しません。",
+                        "researching": "情報を確認中です。未確認の旅行情報は表示しません。",
+                        "ready": "検証済みの情報を受信しました。",
+                        "unconfigured": "情報提供元が未設定です。未確認の旅行情報は表示しません。",
+                        "failed": "情報収集に失敗しました。未確認の旅行情報は表示しません。"}[run["state"]]}
+
+
 def application(environ, start_response):
     path = environ.get("PATH_INFO", "/")
-    if path == "/api/planner" and environ.get("REQUEST_METHOD") == "POST":
+    method = environ.get("REQUEST_METHOD", "GET")
+    if path == "/api/planner" and method == "POST":
         data = _read_json_body(environ)
         if not isinstance(data, dict):
             return _bad_request(start_response, "request body must be a JSON object")
@@ -42,23 +64,56 @@ def application(environ, start_response):
         SESSIONS[session_id] = session
         if result["state"] == "ready" and session_id not in RESEARCH_RUNS:
             request = research_request(session, f"local-{session_id}", f"planner-{session_id}")
-            db_path = os.environ.get("LLM_TRAVEL_DB", "data/travel.sqlite3")
-            Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-            repo = Repository(db_path)
+            repo = _repository()
             try:
                 run = repo.create_research_run(request["profile_id"], request["requirements"], request["source_targets"])
             finally:
                 repo.close()
             RESEARCH_RUNS[session_id] = run["id"]
         if session_id in RESEARCH_RUNS:
-            result["research"] = {"run_id": RESEARCH_RUNS[session_id], "state": "requested", "message": "情報収集の準備中です。未確認の旅行情報は表示しません。"}
-        start_response("200 OK", [("Content-Type", "application/json; charset=utf-8")])
-        return [json.dumps({"session_id": session_id, **result}, ensure_ascii=False).encode("utf-8")]
+            repo = _repository()
+            try:
+                run = repo.get_research_run(RESEARCH_RUNS[session_id])
+                if run is not None:
+                    run["fresh_verified_evidence"] = repo.fresh_verified_evidence(run["id"])
+                    result["research"] = _research_status(run)
+            finally:
+                repo.close()
+        return _json_response(start_response, {"session_id": session_id, **result})
+    if path.startswith("/api/research/"):
+        parts = path.split("/")
+        if len(parts) not in (4, 5) or not parts[3]:
+            return _bad_request(start_response, "research run id is required")
+        run_id = parts[3]
+        action = parts[4] if len(parts) == 5 else None
+        repo = _repository()
+        try:
+            if method == "GET" and action is None:
+                run = repo.get_research_run(run_id)
+                if run is None:
+                    return _json_response(start_response, {"error": "research run not found"}, "404 Not Found")
+                run["fresh_verified_evidence"] = repo.fresh_verified_evidence(run_id)
+                return _json_response(start_response, {"research": _research_status(run), "evidence": run["evidence"]})
+            data = _read_json_body(environ)
+            if not isinstance(data, dict):
+                return _bad_request(start_response, "request body must be a JSON object")
+            if method == "POST" and action == "evidence":
+                evidence = repo.record_evidence(run_id, data)
+                return _json_response(start_response, {"evidence": evidence, "state": "researching"})
+            if method == "POST" and action == "complete":
+                run = repo.complete_research_run(run_id, data.get("state"))
+                run["fresh_verified_evidence"] = repo.fresh_verified_evidence(run_id)
+                return _json_response(start_response, {"research": _research_status(run)})
+            return _json_response(start_response, {"error": "research endpoint not found"}, "404 Not Found")
+        except ValueError as exc:
+            return _bad_request(start_response, str(exc))
+        finally:
+            repo.close()
     if path == "/api/dialogue":
         query = parse_qs(environ.get("QUERY_STRING", ""))
-        repo = Repository(os.environ.get("LLM_TRAVEL_DB", "data/travel.sqlite3"))
+        repo = _repository()
         try:
-            if environ.get("REQUEST_METHOD") == "POST":
+            if method == "POST":
                 data = _read_json_body(environ)
                 if not isinstance(data, dict) or not isinstance(data.get("body"), dict):
                     return _bad_request(start_response, "request body must be a JSON object with a 'body' field")
@@ -72,8 +127,7 @@ def application(environ, start_response):
                 payload = {"messages": repo.read_agent_messages(query.get("conversation_id", ["ai-001"])[0], after)}
         finally:
             repo.close()
-        start_response("200 OK", [("Content-Type", "application/json; charset=utf-8")])
-        return [json.dumps(payload, ensure_ascii=False).encode("utf-8")]
+        return _json_response(start_response, payload)
     requested = "index.html" if path == "/" else path.lstrip("/")
     root = ROOT.resolve()
     target = (ROOT / requested).resolve()
