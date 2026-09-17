@@ -8,6 +8,7 @@ from wsgiref.simple_server import make_server
 from travel.storage import Repository
 from travel.planner import PlannerSession, next_turn, research_request
 from travel.providers import public_provider_catalog
+from travel.free_sources import NominatimAdapter, WikimediaAdapter, public_result_evidence, public_source_catalog
 
 
 ROOT = Path(__file__).resolve().parents[1] / "web"
@@ -58,6 +59,32 @@ def application(environ, start_response):
     method = environ.get("REQUEST_METHOD", "GET")
     if path == "/api/providers" and method == "GET":
         return _json_response(start_response, {"providers": public_provider_catalog()})
+    if path == "/api/free-sources" and method == "GET":
+        return _json_response(start_response, {"sources": [item.__dict__ for item in public_source_catalog()]})
+    if path == "/api/free-research" and method == "POST":
+        data = _read_json_body(environ)
+        if not isinstance(data, dict) or not isinstance(data.get("destination"), str):
+            return _bad_request(start_response, "destination must be a string")
+        destination = data["destination"].strip()
+        if not destination or len(destination) > 160:
+            return _bad_request(start_response, "destination must be 1 to 160 characters")
+        # These are bounded, user-triggered requests.  Results stay unverified
+        # until an operator reviews them against an authoritative source.
+        results = [NominatimAdapter().search_destination(destination),
+                   WikimediaAdapter().search_destination(destination)]
+        evidence = []
+        for result in results:
+            try:
+                evidence.extend(public_result_evidence(result))
+            except ValueError:
+                continue
+        return _json_response(start_response, {
+            "destination": destination,
+            "results": [{"provider": result.provider, "state": result.state,
+                         "value": result.value, "version": result.version} for result in results],
+            "evidence": evidence,
+            "notice": "公開情報の候補です。時刻・料金・評価・営業状況は未検証のため旅程には使いません。",
+        })
     if path == "/api/planner" and method == "POST":
         data = _read_json_body(environ)
         if not isinstance(data, dict):

@@ -33,6 +33,37 @@ class WebAppTests(unittest.TestCase):
         self.assertIn('Google Maps Places API', providers['google_places']['name'])
         rendered = json.dumps(payload)
         self.assertNotIn('API_KEY', rendered)
+
+    def test_free_source_catalog_discloses_no_key_and_feed_selection_states(self):
+        seen, body = self.request('/api/free-sources')
+        self.assertEqual(seen[0], '200 OK')
+        sources = {source['id']: source for source in json.loads(body)['sources']}
+        self.assertEqual(sources['nominatim']['state'], 'available_no_key')
+        self.assertEqual(sources['official_gtfs']['state'], 'feed_selection_required')
+
+    @patch("travel.webapp.WikimediaAdapter")
+    @patch("travel.webapp.NominatimAdapter")
+    def test_free_research_is_bounded_user_triggered_and_keeps_results_unverified(self, nominatim, wikimedia):
+        from travel.providers import ProviderResult
+        nominatim.return_value.search_destination.return_value = ProviderResult(
+            "available", [{"display_name": "京都", "lat": "35.0", "lon": "135.0",
+                             "osm_type": "relation", "osm_id": 123}], provider="nominatim")
+        wikimedia.return_value.search_destination.return_value = ProviderResult(
+            "available", {"pages": [{"title": "京都", "key": "京都", "description": "都市"}]}, provider="wikimedia")
+        seen, body = self.post("/api/free-research", {"destination": " 京都 "})
+        payload = json.loads(body)
+        self.assertEqual(seen[0], "200 OK")
+        self.assertEqual(payload["destination"], "京都")
+        self.assertEqual(len(payload["results"]), 2)
+        self.assertTrue(payload["evidence"])
+        self.assertTrue(all(item["verification_status"] == "unverified" for item in payload["evidence"]))
+        nominatim.return_value.search_destination.assert_called_once_with("京都")
+        wikimedia.return_value.search_destination.assert_called_once_with("京都")
+
+    def test_free_research_rejects_missing_or_oversized_destination(self):
+        for payload in ({}, {"destination": " "}, {"destination": "a" * 161}):
+            seen, _ = self.post("/api/free-research", payload)
+            self.assertEqual(seen[0], "400 Bad Request")
     def test_complete_conversation_creates_requested_research_run(self):
         session='ready-test';self.post('/api/planner',{'session_id':session,'message':'はい'})
         for answer in ['大阪','京都','1','グルメ','両方','50000','ホテル','公共交通','なし']:
