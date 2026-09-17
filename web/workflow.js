@@ -1,5 +1,5 @@
 const WORKSPACE_KEY = 'llm-travel-workspace-v2';
-const workflow = { runId: null, packet: [], review: null, notice: '' };
+const workflow = { runId: null, packet: [], review: null, notice: '', hydratedRunId: null };
 try { const restored = JSON.parse(localStorage.getItem(WORKSPACE_KEY) || '{}'); if (restored.conditions) Object.assign(state, restored.conditions); Object.assign(workflow, restored.workflow || {}); } catch (_) {}
 const persistWorkspace = () => localStorage.setItem(WORKSPACE_KEY, JSON.stringify({ conditions: state, workflow }));
 const requestJson = async (url, options) => { const response = await fetch(url, options || {}); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.message || body.error || '処理に失敗しました。'); return body; };
@@ -16,7 +16,7 @@ runResearch = async function () {
       requestJson('/api/workspace/runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requirements: requirements(), source_targets: ['nominatim', 'wikimedia', 'open_meteo'] }) })
     ]);
     evidence = results[0].evidence || []; selectedEvidence = new Set(); packetCreated = false;
-    workflow.runId = results[1].run.id; workflow.packet = []; workflow.review = null;
+    workflow.runId = results[1].run.id; workflow.packet = []; workflow.review = null; workflow.hydratedRunId = null;
     workflow.notice = '研究ランを作成しました。候補を選択して根拠パケットへ保存してください。';
     persistWorkspace(); render('research');
   } catch (error) { workflow.notice = error.message; persistWorkspace(); alert(error.message); } finally { if (button) button.disabled = false; }
@@ -36,6 +36,23 @@ bindResearch = function () {
   };
   const next = document.querySelector('#next-review'); if (next) next.onclick = () => render('review');
 };
+async function hydrateResearchPacket() {
+  if (!workflow.runId || !workflow.packet.length || workflow.hydratedRunId === workflow.runId) return;
+  try {
+    const saved = await requestJson('/api/research/' + encodeURIComponent(workflow.runId));
+    evidence = saved.evidence || [];
+    selectedEvidence = new Set(evidence.map((_, index) => index));
+    packetCreated = evidence.length > 0;
+    workflow.packet = saved.evidence || [];
+    workflow.hydratedRunId = workflow.runId;
+    workflow.notice = evidence.length + '件の保存済み根拠パケットを復元しました。';
+    persistWorkspace();
+    render('research');
+  } catch (error) {
+    workflow.notice = '保存済み根拠を復元できません: ' + error.message;
+    persistWorkspace();
+  }
+}
 pages.review = () => baseReviewPage() + '<section class="page workflow-tools"><section class="card"><h2>手動レビューの受け渡し</h2><p>WebアプリはCodex・Claudeを起動しません。根拠パケットを保存し、明示的に実行したローカル結果だけを読み込みます。</p><div class="actions"><button class="secondary" id="download-review">実行用JSONを保存</button><label class="secondary file-button">結果JSONを読み込む<input id="review-file" type="file" accept="application/json"></label></div><div id="review-import-status" class="empty"></div><div class="actions"><button class="secondary" data-go="research">← 根拠候補へ戻る</button><button class="secondary" data-go="itinerary">詳細旅程の検証画面を見る →</button></div></section></section>';
 function bindReview() {
   const output = document.querySelector('#review-import-status'); if (output) output.textContent = workflow.review ? workflow.review.summary : 'レビュー結果はまだ読み込まれていません。';
@@ -53,6 +70,7 @@ render = function (name) {
   const current = knownPages.has(name) ? name : 'home';
   baseRender(current);
   if (current === 'home') persistWorkspace();
+  if (current === 'research') void hydrateResearchPacket();
   if (current === 'review') bindReview();
   if (current === 'public') bindPublic();
   document.querySelectorAll('[data-go]').forEach(button => button.onclick = () => navigate(button.dataset.go));
