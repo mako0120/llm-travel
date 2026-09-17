@@ -68,6 +68,12 @@ def application(environ, start_response):
         destination = data["destination"].strip()
         if not destination or len(destination) > 160:
             return _bad_request(start_response, "destination must be 1 to 160 characters")
+        if os.environ.get("LLM_TRAVEL_DEPLOYMENT_MODE", "research").lower() == "commercial":
+            return _json_response(start_response, {
+                "state": "commercial_provider_configuration_required",
+                "message": "商用モードでは公開共有 API を呼び出しません。各情報源の商用契約・自己ホスト・ライセンス確認済み接続を設定してください。",
+                "sources": [item.__dict__ for item in public_source_catalog()],
+            }, "409 Conflict")
         # These are bounded, user-triggered requests.  Results stay unverified
         # until an operator reviews them against an authoritative source.
         geocode = NominatimAdapter().search_destination(destination)

@@ -68,6 +68,13 @@ class WebAppTests(unittest.TestCase):
         for payload in ({}, {"destination": " "}, {"destination": "a" * 161}):
             seen, _ = self.post("/api/free-research", payload)
             self.assertEqual(seen[0], "400 Bad Request")
+
+    def test_commercial_mode_never_calls_shared_free_apis(self):
+        with patch.dict("os.environ", {"LLM_TRAVEL_DEPLOYMENT_MODE": "commercial"}):
+            seen, body = self.post("/api/free-research", {"destination": "京都"})
+        payload = json.loads(body)
+        self.assertEqual(seen[0], "409 Conflict")
+        self.assertEqual(payload["state"], "commercial_provider_configuration_required")
     def test_complete_conversation_creates_requested_research_run(self):
         session='ready-test';self.post('/api/planner',{'session_id':session,'message':'はい'})
         for answer in ['大阪','京都','1','グルメ','両方','50000','ホテル','公共交通','なし']:

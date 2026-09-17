@@ -13,6 +13,7 @@ class FreeSourcesTests(unittest.TestCase):
         entries = {entry.id: entry for entry in public_source_catalog()}
         self.assertEqual(entries["nominatim"].state, "available_no_key")
         self.assertEqual(entries["open_meteo"].state, "available_no_key")
+        self.assertEqual(entries["open_meteo"].commercial_use, "commercial_subscription_required")
         self.assertIn("1 request/second", entries["nominatim"].constraint)
         self.assertEqual(entries["official_gtfs"].state, "feed_selection_required")
 

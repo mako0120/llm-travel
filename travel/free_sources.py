@@ -36,6 +36,7 @@ class PublicSourcePolicy:
     purpose: str
     constraint: str
     documentation_url: str
+    commercial_use: str
 
 
 def public_source_catalog():
@@ -46,24 +47,28 @@ def public_source_catalog():
             "A user-entered destination's approximate coordinates",
             "One user-triggered query at a time; at most 1 request/second; attribution required; no autocomplete or bulk POI collection.",
             "https://operations.osmfoundation.org/policies/nominatim/",
+            "self_host_or_provider_required",
         ),
         PublicSourcePolicy(
             "wikimedia", "Wikimedia REST API", "available_no_key",
             "Destination context and discovery leads",
             "Send an identifying User-Agent; obey rate limits and each result's license. This is never proof of current travel operations.",
             "https://www.mediawiki.org/wiki/API:REST_API/Policies",
+            "license_and_rate_review_required",
         ),
         PublicSourcePolicy(
             "open_meteo", "Open-Meteo Forecast API", "available_no_key",
             "Hourly weather forecast for an already geocoded destination",
             "Use only for a user-requested date within the provider forecast horizon. Forecasts remain estimates and must not be presented as observed weather.",
             "https://open-meteo.com/en/docs",
+            "commercial_subscription_required",
         ),
         PublicSourcePolicy(
             "official_gtfs", "事業者公開 GTFS / GTFS-JP", "feed_selection_required",
             "Published route names, stops, service calendars and timetable rows",
             "An operator-published feed URL, applicable dates, license and freshness check are required before displaying a timetable.",
             "https://www.gtfs.jp/developpers-guide/format-reference.html",
+            "operator_license_review_required",
         ),
     )
 

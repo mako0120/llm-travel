@@ -11,6 +11,12 @@ Issue: #52。旅行計画は保存済みの候補一覧だけで決めず、入�
 
 `POST /api/free-research` は、明示された目的地に対してNominatim、Wikimedia、座標取得後のOpen-Meteoを順に照会する。全結果は `unverified` で返し、保存済み候補のランキングや旅程の事実には自動採用しない。
 
+## 商用モード
+
+`LLM_TRAVEL_DEPLOYMENT_MODE=commercial` では共有の無料 API を呼び出さず、`commercial_provider_configuration_required` を返す。商用提供を始める前に、Nominatimは自己ホストまたは商用プロバイダー、Open-Meteoは商用サブスクリプション、Wikimediaは再利用する各コンテンツのライセンス・帰属とレートの確認、GTFSは各事業者のライセンス確認を完了させる。
+
+この切替は「無料 API の商用利用を許可する」という主張ではない。契約や自己ホストの接続設定が未実装・未確認の間は、利用者への外部照会を停止する安全弁である。
+
 未許可スクレイピング、検索結果だけからの営業時間・運賃・時刻表・予約可否の断定、現在情報の創作は行わない。Nominatimは利用者が確定して送信した目的地に対し、1秒に1件以下の単発検索と帰属を必須にする。公開データは無制限のAPIではない。
 
 ## ChatGPT/Codex と Claude の対話
