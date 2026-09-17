@@ -38,6 +38,41 @@ def _timestamp(value):
     return parsed
 
 
+def validate_evidence_payload(evidence):
+    """Return canonical evidence using the same rules used by Repository storage.
+
+    It is side-effect free so agent handoffs can reject malformed input before
+    it reaches an LLM prompt. Unknown fields intentionally do not propagate.
+    """
+    if not isinstance(evidence, dict):
+        raise ValueError("evidence must be an object")
+    agent = evidence.get("agent")
+    if agent not in ("claude", "codex", "human", "provider"):
+        raise ValueError("agent must identify the independent evidence producer")
+    for key in ("source_type", "url", "title"):
+        if not isinstance(evidence.get(key), str) or not evidence[key].strip():
+            raise ValueError(f"{key} must be a nonempty string")
+    if not isinstance(evidence.get("facts"), dict):
+        raise ValueError("facts must be an object")
+    retrieved_at = _timestamp(evidence.get("retrieved_at"))
+    expires_at = _timestamp(evidence.get("expires_at"))
+    if expires_at <= retrieved_at:
+        raise ValueError("expires_at must follow retrieved_at")
+    status = evidence.get("verification_status")
+    if status not in ("verified", "unverified"):
+        raise ValueError("verification_status must be verified or unverified")
+    return {
+        "agent": agent,
+        "source_type": evidence["source_type"].strip(),
+        "url": evidence["url"].strip(),
+        "title": evidence["title"].strip(),
+        "facts": json.loads(_json(evidence["facts"])),
+        "retrieved_at": retrieved_at.isoformat(),
+        "expires_at": expires_at.isoformat(),
+        "verification_status": status,
+    }
+
+
 def _exact(left, right):
     if type(left) is not type(right):
         return False
@@ -365,27 +400,9 @@ class Repository:
     def record_evidence(self, run_id, evidence):
         """Persist supplied research evidence with provenance; do not assert its truth."""
         _identifier(run_id)
-        if not isinstance(evidence, dict):
-            raise ValueError("evidence must be an object")
-        agent = evidence.get("agent")
-        if agent not in ("claude", "codex", "human", "provider"):
-            raise ValueError("agent must identify the independent evidence producer")
-        for key in ("source_type", "url", "title"):
-            if not isinstance(evidence.get(key), str) or not evidence[key].strip():
-                raise ValueError(f"{key} must be a nonempty string")
-        if not isinstance(evidence.get("facts"), dict):
-            raise ValueError("facts must be an object")
-        retrieved_at = _timestamp(evidence.get("retrieved_at"))
-        expires_at = _timestamp(evidence.get("expires_at"))
-        if expires_at <= retrieved_at:
-            raise ValueError("expires_at must follow retrieved_at")
-        status = evidence.get("verification_status")
-        if status not in ("verified", "unverified"):
-            raise ValueError("verification_status must be verified or unverified")
-        canonical = _json({key: evidence[key] for key in ("source_type", "url", "title", "facts", "retrieved_at", "expires_at", "verification_status")})
-        record = {"id": str(uuid4()), "run_id": run_id, "agent": agent, "source_type": evidence["source_type"],
-                  "url": evidence["url"], "title": evidence["title"], "facts": json.loads(_json(evidence["facts"])),
-                  "retrieved_at": retrieved_at.isoformat(), "expires_at": expires_at.isoformat(), "verification_status": status,
+        payload = validate_evidence_payload(evidence)
+        canonical = _json({key: payload[key] for key in ("source_type", "url", "title", "facts", "retrieved_at", "expires_at", "verification_status")})
+        record = {"id": str(uuid4()), "run_id": run_id, **payload,
                   "content_hash": hashlib.sha256(canonical.encode("utf-8")).hexdigest()}
         with self._lock, self._connection:
             run = self._connection.execute("SELECT state FROM research_runs WHERE id = ?", (run_id,)).fetchone()
@@ -396,7 +413,7 @@ class Repository:
             self._connection.execute("UPDATE research_runs SET state = 'researching' WHERE id = ?", (run_id,))
             self._connection.execute("INSERT INTO research_evidence VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                                      (record["id"], run_id, record["agent"], record["source_type"], record["url"], record["title"],
-                                      _json(record["facts"]), record["retrieved_at"], record["expires_at"], status, record["content_hash"]))
+                                      _json(record["facts"]), record["retrieved_at"], record["expires_at"], record["verification_status"], record["content_hash"]))
         return record
 
     def complete_research_run(self, run_id, state):

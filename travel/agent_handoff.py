@@ -2,10 +2,31 @@
 
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+
+from travel.storage import validate_evidence_payload
+
+
+# Only local execution plumbing and configuration locations are inherited.
+# Tokens and GitHub or deployment credentials are intentionally absent.
+_SUBPROCESS_ENV_ALLOWLIST = (
+    "PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "COMSPEC", "TEMP", "TMP",
+    "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "CODEX_HOME",
+    "CLAUDE_CONFIG_DIR", "SSL_CERT_FILE", "SSL_CERT_DIR",
+)
+
+
+def safe_subprocess_env(environment=None):
+    """Build the sole environment passed to local Codex and Claude CLIs."""
+    source = os.environ if environment is None else environment
+    return {
+        key: source[key] for key in _SUBPROCESS_ENV_ALLOWLIST
+        if isinstance(source.get(key), str) and source[key]
+    }
 
 
 def _local_cli(name):
@@ -22,10 +43,11 @@ def build_research_brief(requirements, evidence):
         raise ValueError("requirements must be a nonempty object")
     if not isinstance(evidence, list):
         raise ValueError("evidence must be a list")
+    validated_evidence = [validate_evidence_payload(item) for item in evidence]
     return {
         "format": "llm-travel-agent-handoff", "version": "1.0",
         "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "requirements": requirements, "evidence": evidence,
+        "requirements": requirements, "evidence": validated_evidence,
         "required_output": ["hourly itinerary", "mainstream_or_hidden_gem labels", "alternatives", "transport and costs", "uncertainties"],
         "rules": ["Do not invent current opening hours, prices, availability, ratings, review counts, route times, line names, stations, or departures.",
                   "Only cite supplied evidence. Mark all unverified evidence as unverified.",
@@ -57,6 +79,7 @@ def run_codex_proposal(research_brief, workspace, runner=subprocess.run):
         completed = runner(
             [executable, "exec", "-C", str(root), "--sandbox", "read-only", "--ephemeral", "--output-last-message", str(output), "-"],
             input=prompt, capture_output=True, text=True, timeout=240, check=False,
+            env=safe_subprocess_env(),
         )
         if completed.returncode != 0 or not output.is_file():
             raise RuntimeError("ChatGPT/Codex proposal did not return a response")
@@ -75,7 +98,10 @@ def run_claude_review(chatgpt_proposal, research_brief, runner=subprocess.run):
         "rationale": {"type": "string"}, "unsupported_claims": {"type": "array"},
         "required_evidence": {"type": "array"}, "safe_alternatives": {"type": "array"},
     }, "required": ["decision", "rationale", "unsupported_claims", "required_evidence", "safe_alternatives"]})
-    completed = runner([executable, "-p", "--tools", "", "--output-format", "json", "--json-schema", schema, prompt], capture_output=True, text=True, timeout=120, check=False)
+    completed = runner(
+        [executable, "-p", "--tools", "", "--output-format", "json", "--json-schema", schema, prompt],
+        capture_output=True, text=True, timeout=120, check=False, env=safe_subprocess_env(),
+    )
     if completed.returncode != 0 or not completed.stdout.strip():
         raise RuntimeError("Claude review did not return a response")
     try:
