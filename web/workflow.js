@@ -47,7 +47,7 @@ pages.improve = () => baseImprovementPage() + '<section class="page workflow-too
 pages.public = () => basePublicPage() + '<section class="page workflow-tools"><div id="public-api-status" class="workflow-status"><small>公開APIを確認中です。</small></div></section>';
 pages.settings = () => '<section class="page"><h1>設定 / Provider 状態</h1><p class="subtitle">研究モードと商用モードの接続条件を、根拠とともに確認します。</p><section class="card"><table><thead><tr><th>提供元</th><th>研究モード</th><th>商用モード</th></tr></thead><tbody><tr><td>Nominatim</td><td>明示検索・毎秒一件以下</td><td>自己ホストまたは商用接続が必要</td></tr><tr><td>Open-Meteo</td><td>予報候補のみ</td><td>商用ライセンスと専用接続が必要</td></tr><tr><td>Wikimedia</td><td>ライセンス付き調査候補</td><td>帰属とページ単位の利用条件を確認</td></tr><tr><td>GTFS-JP</td><td>事業者公式フィードを選択</td><td>事業者別の利用条件と鮮度を確認</td></tr><tr><td>Google / TikTok / 食べログ</td><td>未設定</td><td>許可済み公式接続のみ</td></tr></tbody></table><p>詳細な根拠と運用条件はリポジトリの <code>docs/provider-operation-policy.md</code> に記録しています。</p></section></section>';
 async function bindPublic() { const target = document.querySelector('#public-api-status'); if (!target) return; try { const data = await requestJson('/api/public/itineraries'); target.innerHTML = '<b>公開API接続済み</b><small>公開済み・検証済みプラン ' + data.itineraries.length + '件。詳細と共有は <a href="public.html">公開プランページ</a> で確認できます。</small>'; } catch (error) { target.textContent = '公開APIを読み込めません: ' + error.message; } }
-const pageName = () => location.hash.replace(/^#/, '') || 'home';
+const pageName = () => new URLSearchParams(location.search).get('screen') || location.hash.replace(/^#/, '') || 'home';
 const knownPages = new Set(['home', 'research', 'review', 'itinerary', 'improve', 'public', 'settings', 'help']);
 render = function (name) {
   const current = knownPages.has(name) ? name : 'home';
@@ -59,10 +59,15 @@ render = function (name) {
 };
 function navigate(name) {
   if (!knownPages.has(name)) return;
-  if (pageName() === name) render(name);
-  else location.hash = name;
+  if (pageName() === name) { render(name); return; }
+  const url = new URL(location.href);
+  url.searchParams.set('screen', name);
+  url.hash = '';
+  history.pushState({}, '', url);
+  render(name);
 }
 document.querySelectorAll('[data-page]').forEach(button => button.onclick = () => navigate(button.dataset.page));
 window.addEventListener('hashchange', () => render(pageName()));
+window.addEventListener('popstate', () => render(pageName()));
 render(pageName());
 
