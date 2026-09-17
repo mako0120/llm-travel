@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import unittest
 
-from travel.free_sources import NominatimAdapter, OpenMeteoAdapter, WikimediaAdapter, public_result_evidence, public_source_catalog
+from travel.free_sources import NominatimAdapter, NominatimRateLimiter, OpenMeteoAdapter, WikimediaAdapter, public_result_evidence, public_source_catalog
 from travel.providers import ProviderResult
 
 
@@ -25,6 +25,15 @@ class FreeSourcesTests(unittest.TestCase):
         self.assertEqual(len(called), 1)
         self.assertIn("limit=1", called[0])
         self.assertIn("q=%E4%BA%AC%E9%83%BD", called[0])
+
+    def test_nominatim_rate_limiter_enforces_one_request_per_second(self):
+        moments = iter((0.0, 0.25))
+        sleeps = []
+        limiter = NominatimRateLimiter(clock=lambda: next(moments), sleeper=sleeps.append)
+        adapter = NominatimAdapter(lambda _url: [], limiter)
+        adapter.search_destination("京都")
+        adapter.search_destination("大阪")
+        self.assertEqual(sleeps, [0.75])
 
     def test_wikimedia_and_nominatim_results_remain_unverified(self):
         wiki = WikimediaAdapter(lambda _url: {"pages": [{"title": "京都", "key": "京都", "description": "都市"}]})

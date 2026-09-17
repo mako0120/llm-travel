@@ -3,7 +3,7 @@ from http import HTTPStatus
 import json
 import os
 from pathlib import Path
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlsplit
 from wsgiref.simple_server import make_server
 from travel.storage import Repository
 from travel.planner import PlannerSession, next_turn, research_request
@@ -33,6 +33,25 @@ def _bad_request(start_response, message):
     return [json.dumps({"error": message}, ensure_ascii=False).encode("utf-8")]
 
 
+def _forbidden(start_response, message):
+    start_response("403 Forbidden", [("Content-Type", "application/json; charset=utf-8")])
+    return [json.dumps({"error": message}, ensure_ascii=False).encode("utf-8")]
+
+
+def _same_origin_request(environ):
+    """Reject cross-site browser writes; local non-browser development calls remain supported."""
+    if environ.get("HTTP_SEC_FETCH_SITE", "").lower() == "cross-site":
+        return False
+    origin = environ.get("HTTP_ORIGIN")
+    if not origin:
+        return True
+    parsed = urlsplit(origin)
+    if parsed.scheme != "http" or parsed.path or parsed.query or parsed.fragment:
+        return False
+    allowed_ports = {str(os.environ.get("LLM_TRAVEL_PORT", "8765")), "8765"}
+    return parsed.hostname in {"127.0.0.1", "localhost"} and str(parsed.port or 80) in allowed_ports
+
+
 def _repository():
     db_path = os.environ.get("LLM_TRAVEL_DB", "data/travel.sqlite3")
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -57,6 +76,8 @@ def _research_status(run):
 def application(environ, start_response):
     path = environ.get("PATH_INFO", "/")
     method = environ.get("REQUEST_METHOD", "GET")
+    if method in {"POST", "PUT", "PATCH", "DELETE"} and path.startswith("/api/") and not _same_origin_request(environ):
+        return _forbidden(start_response, "cross-origin browser requests are not allowed")
     if path == "/api/public/itineraries" and method == "GET":
         repo = _repository()
         try:

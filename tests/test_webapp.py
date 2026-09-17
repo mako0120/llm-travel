@@ -12,9 +12,11 @@ class WebAppTests(unittest.TestCase):
         seen=[]
         body=b''.join(application({'PATH_INFO':path},lambda status,headers:seen.extend([status,headers])))
         return seen,body
-    def post(self,path,payload):
+    def post(self,path,payload,headers=None):
         raw=json.dumps(payload).encode();seen=[]
-        return seen,b''.join(application({'PATH_INFO':path,'REQUEST_METHOD':'POST','CONTENT_LENGTH':str(len(raw)),'wsgi.input':io.BytesIO(raw)},lambda status,headers:seen.extend([status,headers])))
+        environ={'PATH_INFO':path,'REQUEST_METHOD':'POST','CONTENT_LENGTH':str(len(raw)),'wsgi.input':io.BytesIO(raw)}
+        environ.update(headers or {})
+        return seen,b''.join(application(environ,lambda status,headers:seen.extend([status,headers])))
     def test_assets_are_served(self):
         seen,body=self.request('/')
         self.assertEqual(seen[0],'200 OK');self.assertIn('AI旅行計画',body.decode())
@@ -68,6 +70,17 @@ class WebAppTests(unittest.TestCase):
         for payload in ({}, {"destination": " "}, {"destination": "a" * 161}):
             seen, _ = self.post("/api/free-research", payload)
             self.assertEqual(seen[0], "400 Bad Request")
+
+    def test_cross_site_writes_are_rejected_before_any_api_handler(self):
+        seen, body = self.post("/api/free-research", {"destination": "京都"}, {
+            "HTTP_ORIGIN": "https://attacker.example", "HTTP_SEC_FETCH_SITE": "cross-site"})
+        self.assertEqual(seen[0], "403 Forbidden")
+        self.assertIn("cross-origin", json.loads(body)["error"])
+
+    def test_same_origin_local_write_is_accepted(self):
+        with patch.dict("os.environ", {"LLM_TRAVEL_DEPLOYMENT_MODE": "commercial"}):
+            seen, _ = self.post("/api/free-research", {"destination": "京都"}, {"HTTP_ORIGIN": "http://127.0.0.1:8765"})
+        self.assertEqual(seen[0], "409 Conflict")
 
     def test_commercial_mode_never_calls_shared_free_apis(self):
         with patch.dict("os.environ", {"LLM_TRAVEL_DEPLOYMENT_MODE": "commercial"}):

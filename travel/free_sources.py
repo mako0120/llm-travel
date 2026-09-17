@@ -9,6 +9,8 @@ hour, or reservation fact.
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import json
+import threading
+import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -20,6 +22,29 @@ NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 WIKIMEDIA_SEARCH_URL = "https://ja.wikipedia.org/w/rest.php/v1/search/page"
 OPEN_METEO_FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 USER_AGENT = "llm-travel-research-prototype/0.1 (local, contact: operator)"
+
+
+class NominatimRateLimiter:
+    """Serialize public Nominatim calls to the policy's one-request-per-second cap."""
+
+    def __init__(self, clock=time.monotonic, sleeper=time.sleep, minimum_interval_seconds=1.0):
+        self._clock = clock
+        self._sleep = sleeper
+        self._minimum_interval = minimum_interval_seconds
+        self._last_request_at = None
+        self._lock = threading.Lock()
+
+    def acquire(self):
+        with self._lock:
+            now = self._clock()
+            delay = 0.0 if self._last_request_at is None else max(0.0, self._minimum_interval - (now - self._last_request_at))
+            if delay:
+                self._sleep(delay)
+                now += delay
+            self._last_request_at = now
+
+
+_NOMINATIM_RATE_LIMITER = NominatimRateLimiter()
 
 
 def _get_json(url, timeout_seconds=10):
@@ -76,14 +101,16 @@ def public_source_catalog():
 class NominatimAdapter:
     """Single, explicitly requested geocode lookup with an injectable transport."""
 
-    def __init__(self, transport=_get_json):
+    def __init__(self, transport=_get_json, rate_limiter=_NOMINATIM_RATE_LIMITER):
         self._transport = transport
+        self._rate_limiter = rate_limiter
 
     def search_destination(self, destination):
         if not isinstance(destination, str) or not destination.strip():
             raise ValueError("destination must be a nonempty string")
         query = urlencode({"q": destination.strip(), "format": "jsonv2", "limit": "1", "accept-language": "ja"})
         try:
+            self._rate_limiter.acquire()
             value = self._transport(f"{NOMINATIM_URL}?{query}")
         except (HTTPError, URLError, TimeoutError, ValueError, OSError):
             return ProviderResult("unavailable", provider="nominatim", version="v1")
