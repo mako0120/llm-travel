@@ -18,6 +18,7 @@ from travel.providers import ProviderResult
 
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 WIKIMEDIA_SEARCH_URL = "https://ja.wikipedia.org/w/rest.php/v1/search/page"
+OPEN_METEO_FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 USER_AGENT = "llm-travel-research-prototype/0.1 (local, contact: operator)"
 
 
@@ -51,6 +52,12 @@ def public_source_catalog():
             "Destination context and discovery leads",
             "Send an identifying User-Agent; obey rate limits and each result's license. This is never proof of current travel operations.",
             "https://www.mediawiki.org/wiki/API:REST_API/Policies",
+        ),
+        PublicSourcePolicy(
+            "open_meteo", "Open-Meteo Forecast API", "available_no_key",
+            "Hourly weather forecast for an already geocoded destination",
+            "Use only for a user-requested date within the provider forecast horizon. Forecasts remain estimates and must not be presented as observed weather.",
+            "https://open-meteo.com/en/docs",
         ),
         PublicSourcePolicy(
             "official_gtfs", "事業者公開 GTFS / GTFS-JP", "feed_selection_required",
@@ -101,10 +108,33 @@ class WikimediaAdapter:
         return ProviderResult("available", value, provider="wikimedia", version="v1")
 
 
+class OpenMeteoAdapter:
+    """A small no-key forecast lookup for coordinates from an explicit geocode."""
+
+    def __init__(self, transport=_get_json):
+        self._transport = transport
+
+    def forecast(self, latitude, longitude):
+        if type(latitude) not in {int, float} or type(longitude) not in {int, float}:
+            raise ValueError("latitude and longitude must be numbers")
+        if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
+            raise ValueError("latitude or longitude is out of range")
+        query = urlencode({"latitude": str(latitude), "longitude": str(longitude),
+                           "hourly": "temperature_2m,precipitation_probability,weather_code",
+                           "forecast_days": "7", "timezone": "Asia/Tokyo"})
+        try:
+            value = self._transport(f"{OPEN_METEO_FORECAST_URL}?{query}")
+        except (HTTPError, URLError, TimeoutError, ValueError, OSError):
+            return ProviderResult("unavailable", provider="open_meteo", version="v1")
+        if not isinstance(value, dict) or not isinstance(value.get("hourly"), dict):
+            return ProviderResult("invalid", provider="open_meteo", version="v1")
+        return ProviderResult("available", value, provider="open_meteo", version="v1")
+
+
 def public_result_evidence(result, retrieved_at=None, freshness_hours=24):
     """Create unverified evidence candidates from a public source result."""
-    if not isinstance(result, ProviderResult) or result.provider not in {"nominatim", "wikimedia"}:
-        raise ValueError("result must be a Nominatim or Wikimedia ProviderResult")
+    if not isinstance(result, ProviderResult) or result.provider not in {"nominatim", "wikimedia", "open_meteo"}:
+        raise ValueError("result must be a supported public-source ProviderResult")
     if result.state != "available":
         return []
     if type(freshness_hours) is not int or not 1 <= freshness_hours <= 168:
@@ -123,6 +153,12 @@ def public_result_evidence(result, retrieved_at=None, freshness_hours=24):
         return [{"agent": "provider", "source_type": "OpenStreetMap Nominatim", "url": f"https://www.openstreetmap.org/{item.get('osm_type', 'node')}/{item['osm_id']}",
                  "title": item["display_name"], "facts": {key: item[key] for key in ("lat", "lon", "type", "class", "osm_type", "osm_id") if key in item},
                  "retrieved_at": retrieved, "expires_at": expires, "verification_status": "unverified"}]
+    if result.provider == "open_meteo":
+        hourly = result.value.get("hourly", {})
+        return [{"agent": "provider", "source_type": "Open-Meteo Forecast API", "url": "https://open-meteo.com/en/docs",
+                 "title": "User-requested weather forecast", "facts": {"timezone": result.value.get("timezone"),
+                 "hourly_variables": sorted(hourly.keys())}, "retrieved_at": retrieved, "expires_at": expires,
+                 "verification_status": "unverified"}]
     evidence = []
     for page in result.value["pages"]:
         if not isinstance(page, dict) or not isinstance(page.get("title"), str) or not isinstance(page.get("key"), str):

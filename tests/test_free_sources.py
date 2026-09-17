@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import unittest
 
-from travel.free_sources import NominatimAdapter, WikimediaAdapter, public_result_evidence, public_source_catalog
+from travel.free_sources import NominatimAdapter, OpenMeteoAdapter, WikimediaAdapter, public_result_evidence, public_source_catalog
 from travel.providers import ProviderResult
 
 
@@ -12,6 +12,7 @@ class FreeSourcesTests(unittest.TestCase):
     def test_catalog_marks_only_no_key_sources_available(self):
         entries = {entry.id: entry for entry in public_source_catalog()}
         self.assertEqual(entries["nominatim"].state, "available_no_key")
+        self.assertEqual(entries["open_meteo"].state, "available_no_key")
         self.assertIn("1 request/second", entries["nominatim"].constraint)
         self.assertEqual(entries["official_gtfs"].state, "feed_selection_required")
 
@@ -37,3 +38,13 @@ class FreeSourcesTests(unittest.TestCase):
         self.assertEqual(NominatimAdapter(lambda _url: {}).search_destination("京都").state, "invalid")
         with self.assertRaises(ValueError):
             WikimediaAdapter(lambda _url: {}).search_destination("京都", 11)
+
+    def test_open_meteo_is_bounded_and_remains_a_forecast_candidate(self):
+        called = []
+        adapter = OpenMeteoAdapter(lambda url: called.append(url) or {"timezone": "Asia/Tokyo", "hourly": {"time": []}})
+        result = adapter.forecast(35.0, 135.0)
+        self.assertEqual(result.state, "available")
+        self.assertIn("forecast_days=7", called[0])
+        evidence = public_result_evidence(result, NOW)
+        self.assertEqual(evidence[0]["verification_status"], "unverified")
+        self.assertIn("Forecast", evidence[0]["source_type"])

@@ -41,24 +41,28 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(sources['nominatim']['state'], 'available_no_key')
         self.assertEqual(sources['official_gtfs']['state'], 'feed_selection_required')
 
+    @patch("travel.webapp.OpenMeteoAdapter")
     @patch("travel.webapp.WikimediaAdapter")
     @patch("travel.webapp.NominatimAdapter")
-    def test_free_research_is_bounded_user_triggered_and_keeps_results_unverified(self, nominatim, wikimedia):
+    def test_free_research_is_bounded_user_triggered_and_keeps_results_unverified(self, nominatim, wikimedia, open_meteo):
         from travel.providers import ProviderResult
         nominatim.return_value.search_destination.return_value = ProviderResult(
             "available", [{"display_name": "京都", "lat": "35.0", "lon": "135.0",
                              "osm_type": "relation", "osm_id": 123}], provider="nominatim")
         wikimedia.return_value.search_destination.return_value = ProviderResult(
             "available", {"pages": [{"title": "京都", "key": "京都", "description": "都市"}]}, provider="wikimedia")
+        open_meteo.return_value.forecast.return_value = ProviderResult(
+            "available", {"timezone": "Asia/Tokyo", "hourly": {"time": []}}, provider="open_meteo")
         seen, body = self.post("/api/free-research", {"destination": " 京都 "})
         payload = json.loads(body)
         self.assertEqual(seen[0], "200 OK")
         self.assertEqual(payload["destination"], "京都")
-        self.assertEqual(len(payload["results"]), 2)
+        self.assertEqual(len(payload["results"]), 3)
         self.assertTrue(payload["evidence"])
         self.assertTrue(all(item["verification_status"] == "unverified" for item in payload["evidence"]))
         nominatim.return_value.search_destination.assert_called_once_with("京都")
         wikimedia.return_value.search_destination.assert_called_once_with("京都")
+        open_meteo.return_value.forecast.assert_called_once_with(35.0, 135.0)
 
     def test_free_research_rejects_missing_or_oversized_destination(self):
         for payload in ({}, {"destination": " "}, {"destination": "a" * 161}):

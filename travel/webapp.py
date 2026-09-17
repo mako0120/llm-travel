@@ -8,7 +8,7 @@ from wsgiref.simple_server import make_server
 from travel.storage import Repository
 from travel.planner import PlannerSession, next_turn, research_request
 from travel.providers import public_provider_catalog
-from travel.free_sources import NominatimAdapter, WikimediaAdapter, public_result_evidence, public_source_catalog
+from travel.free_sources import NominatimAdapter, OpenMeteoAdapter, WikimediaAdapter, public_result_evidence, public_source_catalog
 
 
 ROOT = Path(__file__).resolve().parents[1] / "web"
@@ -70,8 +70,14 @@ def application(environ, start_response):
             return _bad_request(start_response, "destination must be 1 to 160 characters")
         # These are bounded, user-triggered requests.  Results stay unverified
         # until an operator reviews them against an authoritative source.
-        results = [NominatimAdapter().search_destination(destination),
-                   WikimediaAdapter().search_destination(destination)]
+        geocode = NominatimAdapter().search_destination(destination)
+        results = [geocode, WikimediaAdapter().search_destination(destination)]
+        if geocode.state == "available" and geocode.value and isinstance(geocode.value[0], dict):
+            place = geocode.value[0]
+            try:
+                results.append(OpenMeteoAdapter().forecast(float(place["lat"]), float(place["lon"])))
+            except (KeyError, TypeError, ValueError):
+                pass
         evidence = []
         for result in results:
             try:
