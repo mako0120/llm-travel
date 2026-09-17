@@ -147,6 +147,7 @@ class WebAppTests(unittest.TestCase):
             proposal = {"primary": [primary], "spot_alternatives": [dict(option, spot="Alternative")],
                         "rainy_day_alternatives": [dict(option, spot="Rain alternative")], "food_options": [food, dict(food, name="Second restaurant")],
                         "lodging_options": [lodging], "cost_totals": {"transport": 100, "lodging": 1000, "food": 500, "admission": 0},
+                        "map_points": [{"label": "Synthetic place", "latitude": 35.0, "longitude": 135.0, "evidence_id": evidence["id"]}],
                         "reviews": {"claude": {"decision": "approved", "rationale": "Reviewed"},
                                     "codex": {"decision": "approved", "rationale": "Validated"}}}
             seen, body = self.post(f"/api/research/{run['id']}/itinerary", proposal)
@@ -172,6 +173,16 @@ class WebAppTests(unittest.TestCase):
             self.assertEqual(public["itinerary"]["id"], second["id"])
             self.assertEqual(public["comparison"]["before"]["id"], first["id"])
             self.assertEqual(public["comparison"]["summary"], "移動の余裕時間を30分増やしました。")
+            seen, body = self.post(f"/api/public/itineraries/{published['published']['slug']}/feedback", {"rating": 5, "comment": "Synthetic feedback"})
+            feedback = json.loads(body)["feedback"]
+            self.assertEqual(seen[0], "202 Accepted")
+            repo = travel.webapp._repository()
+            try:
+                repo.approve_public_feedback(feedback["id"], "moderator-test")
+            finally:
+                repo.close()
+            seen, body = self.request(f"/api/public/itineraries/{published['published']['slug']}")
+            self.assertEqual(json.loads(body)["community"]["average_rating"], 5.0)
             seen, body = self.request("/api/public/itineraries")
             self.assertEqual(seen[0], "200 OK")
             self.assertEqual(json.loads(body)["itineraries"][0]["slug"], published["published"]["slug"])

@@ -16,10 +16,11 @@
 <article id="plan" hidden>
   <header class="plan-heading"><p id="published-date"></p><h1 id="plan-title"></h1><p id="plan-meta"></p><button id="copy" type="button">このプランのリンクをコピー</button></header>
   <div class="plan-layout">
-    <section><h2>行動予定</h2><ol id="timeline" class="timeline"></ol><section class="details"><h2>食事・宿泊・費用</h2><div id="details"></div></section></section>
+    <section><h2>行動予定</h2><ol id="timeline" class="timeline"></ol><section id="shared-map" class="shared-map" hidden><h2>共有マップ</h2><p>根拠確認済みの行き先を、旅程の順に表示します。</p><div id="map-canvas" aria-label="旅程の概略地図"></div><ol id="map-points"></ol></section><section class="details"><h2>食事・宿泊・費用</h2><div id="details"></div></section></section>
     <aside id="comparison" class="comparison" hidden><h2>改善前／改善後</h2><p id="comparison-summary"></p><div class="comparison-columns"><section><h3>改善前</h3><ol id="before"></ol></section><section><h3>改善後</h3><ol id="after"></ol></section></div></aside>
   </div>
   <p class="evidence-note">交通・料金・営業時間などは、保存時点の根拠に基づく情報です。予約や現在の運行状況は、利用前に公式情報で確認してください。</p>
+  <section class="community"><h2>旅行者の評価</h2><p id="community-summary"></p><form id="feedback-form"><label>このプランの評価 <select name="rating" required><option value="">選択</option><option value="5">5 とても良い</option><option value="4">4 良い</option><option value="3">3 ふつう</option><option value="2">2 改善が必要</option><option value="1">1 期待と違った</option></select></label><label>感想（任意・個人情報は書かないでください）<textarea name="comment" maxlength="500"></textarea></label><button>評価を送る</button></form></section>
 </article>
 <template id="empty"><div class="empty"><h2>公開済みのプランはまだありません</h2><p>作成者が根拠確認後に公開した旅程がここに表示されます。</p></div></template>
 </main>

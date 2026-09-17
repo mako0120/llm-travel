@@ -155,6 +155,16 @@ class Repository:
                     created_at TEXT NOT NULL,
                     FOREIGN KEY(itinerary_id) REFERENCES itinerary_proposals(id)
                 );
+                CREATE TABLE IF NOT EXISTS public_itinerary_feedback (
+                    id TEXT PRIMARY KEY,
+                    slug TEXT NOT NULL,
+                    rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),
+                    comment TEXT NOT NULL,
+                    status TEXT NOT NULL CHECK(status IN ('pending', 'approved')),
+                    created_at TEXT NOT NULL,
+                    approved_at TEXT,
+                    FOREIGN KEY(slug) REFERENCES published_itineraries(slug)
+                );
                 CREATE TABLE IF NOT EXISTS preference_signals (
                     id TEXT PRIMARY KEY,
                     profile_id TEXT NOT NULL,
@@ -512,7 +522,42 @@ class Repository:
                 before = json.loads(row["document"]) if row else None
         return {"published": dict(published), "itinerary": json.loads(itinerary["document"]),
                 "comparison": None if improvement is None else {"before": before, "summary": improvement["summary"],
-                                                                  "created_at": improvement["created_at"]}}
+                                                                  "created_at": improvement["created_at"]},
+                "community": self.public_feedback_summary(slug)}
+
+    def add_public_feedback(self, slug, rating, comment=""):
+        _identifier(slug)
+        if not isinstance(rating, int) or isinstance(rating, bool) or not 1 <= rating <= 5:
+            raise ValueError("rating must be an integer from 1 to 5")
+        if not isinstance(comment, str) or len(comment) > 500:
+            raise ValueError("comment must be text of at most 500 characters")
+        with self._lock:
+            if self._connection.execute("SELECT 1 FROM published_itineraries WHERE slug = ?", (slug,)).fetchone() is None:
+                raise ValueError("public itinerary does not exist")
+        record = {"id": str(uuid4()), "slug": slug, "rating": rating, "comment": comment.strip(), "status": "pending", "created_at": _now()}
+        with self._lock, self._connection:
+            self._connection.execute("INSERT INTO public_itinerary_feedback VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                     (*record.values(), None))
+        return record
+
+    def approve_public_feedback(self, feedback_id, approver_id):
+        _identifier(feedback_id); _identifier(approver_id)
+        with self._lock, self._connection:
+            row = self._connection.execute("SELECT * FROM public_itinerary_feedback WHERE id = ?", (feedback_id,)).fetchone()
+            if row is None:
+                raise ValueError("public feedback does not exist")
+            if row["status"] == "approved":
+                return dict(row)
+            approved_at = _now()
+            self._connection.execute("UPDATE public_itinerary_feedback SET status = 'approved', approved_at = ? WHERE id = ?", (approved_at, feedback_id))
+            return dict(self._connection.execute("SELECT * FROM public_itinerary_feedback WHERE id = ?", (feedback_id,)).fetchone())
+
+    def public_feedback_summary(self, slug):
+        _identifier(slug)
+        with self._lock:
+            row = self._connection.execute("SELECT COUNT(*) AS count, AVG(rating) AS average FROM public_itinerary_feedback WHERE slug = ? AND status = 'approved'", (slug,)).fetchone()
+        return {"approved_count": row["count"], "average_rating": None if row["average"] is None else round(row["average"], 1),
+                "note": "旅行者評価は参考情報です。改善ルールの自動採用や順位付けには使いません。"}
 
     def add_preference_signal(self, profile_id, preference_key, preference_value, weight, source_feedback_id=None):
         _identifier(profile_id)

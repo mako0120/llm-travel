@@ -75,6 +75,20 @@ def application(environ, start_response):
             return _json_response(start_response, result)
         finally:
             repo.close()
+    if path.startswith("/api/public/itineraries/") and path.endswith("/feedback") and method == "POST":
+        slug = path.removeprefix("/api/public/itineraries/").removesuffix("/feedback").strip("/")
+        data = _read_json_body(environ)
+        if not slug or not isinstance(data, dict):
+            return _bad_request(start_response, "public itinerary slug and JSON body are required")
+        repo = _repository()
+        try:
+            feedback = repo.add_public_feedback(slug, data.get("rating"), data.get("comment", ""))
+            return _json_response(start_response, {"feedback": feedback,
+                "message": "評価を受け付けました。公開前に確認されます。"}, "202 Accepted")
+        except ValueError as exc:
+            return _bad_request(start_response, str(exc))
+        finally:
+            repo.close()
     if path.startswith("/api/itineraries/") and path.endswith("/publish") and method == "POST":
         itinerary_id = path.removeprefix("/api/itineraries/").removesuffix("/publish").strip("/")
         data = _read_json_body(environ)

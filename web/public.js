@@ -24,13 +24,23 @@ function renderDetails(itinerary) {
   const budget = item('p', `合計費用：${yen.format(total)}（移動 ${yen.format(cost.transport || 0)}／宿泊 ${yen.format(cost.lodging || 0)}／食事 ${yen.format(cost.food || 0)}／入場 ${yen.format(cost.admission || 0)}）`);
   target.append(food, stay, budget);
 }
+function renderMap(itinerary) {
+  const points = itinerary.map_points || []; if (!points.length) return;
+  document.querySelector('#shared-map').hidden = false;
+  const target = document.querySelector('#map-points'); target.replaceChildren(); const canvas = document.querySelector('#map-canvas'); canvas.replaceChildren();
+  const lats = points.map(x => x.latitude), lons = points.map(x => x.longitude); const latSpan = Math.max(...lats) - Math.min(...lats) || 1; const lonSpan = Math.max(...lons) - Math.min(...lons) || 1;
+  points.forEach((point, index) => { const row = document.createElement('li'); row.append(text(`${index + 1}. ${point.label}（${point.latitude.toFixed(4)}, ${point.longitude.toFixed(4)}）`)); target.append(row); });
+  points.forEach((point, index) => { const node = document.createElement('span'); node.className = 'map-node'; node.style.left = `${12 + ((point.longitude - Math.min(...lons)) / lonSpan) * 76}%`; node.style.top = `${82 - ((point.latitude - Math.min(...lats)) / latSpan) * 64}%`; node.textContent = index + 1; node.title = point.label; canvas.append(node); });
+}
 function renderPlan(payload) {
   list.hidden = true; plan.hidden = false; status.textContent = '';
   const {published, itinerary, comparison} = payload;
   document.querySelector('#plan-title').textContent = published.title;
   document.querySelector('#published-date').textContent = `公開日 ${new Date(published.created_at).toLocaleDateString('ja-JP')}`;
   document.querySelector('#plan-meta').textContent = `${itinerary.primary?.length || 0}件の行程 · 根拠確認済み保存版`;
-  renderTimeline(document.querySelector('#timeline'), itinerary.primary); renderDetails(itinerary);
+  renderTimeline(document.querySelector('#timeline'), itinerary.primary); renderMap(itinerary); renderDetails(itinerary);
+  const community = payload.community; document.querySelector('#community-summary').textContent = community.approved_count ? `参考評価 ${community.average_rating} / 5（${community.approved_count}件）— ${community.note}` : 'まだ公開済みの旅行者評価はありません。';
+  document.querySelector('#feedback-form').onsubmit = async event => { event.preventDefault(); const form = new FormData(event.currentTarget); const response = await fetch(`/api/public/itineraries/${encodeURIComponent(published.slug)}/feedback`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({rating:Number(form.get('rating')), comment:form.get('comment')})}); const data = await response.json(); status.textContent = response.ok ? data.message : data.error; if (response.ok) event.currentTarget.reset(); };
   if (comparison?.before) { const box = document.querySelector('#comparison'); box.hidden = false; document.querySelector('#comparison-summary').textContent = comparison.summary; renderTimeline(document.querySelector('#before'), comparison.before.primary); renderTimeline(document.querySelector('#after'), itinerary.primary); }
   document.querySelector('#copy').onclick = async () => { await navigator.clipboard.writeText(location.href); status.textContent = 'リンクをコピーしました。'; };
 }
