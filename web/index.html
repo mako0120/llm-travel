@@ -121,15 +121,22 @@
 <div id="confirmation" hidden>
 <div class="confirmation-note">
 <h3>条件をまとめました</h3>
-<p>下書きの内容を確認し、条件ファイルを保存できます。料金・営業時間・交通の調査はまだ行っていません。</p>
-<p>この画面からAIの起動や自動調査は行いません。</p>
+<p>次に、行き先の無料公開情報を調べて、プラン作成に必要な候補を表示します。</p>
+<p>時刻・料金・営業状況は、公式情報で確認するまで確定しません。</p>
 </div>
 <div class="actions">
+<button class="primary" id="research" type="button">無料情報を調べる <span aria-hidden="true">→</span></button>
 <a class="primary" id="download" download="travel-conditions.synthetic.json">条件ファイルを保存 <span aria-hidden="true">↓</span>
 </a>
 <button class="secondary" id="edit" type="button">入力内容を編集</button>
 </div>
 </div>
+<section class="research-results" id="research-results" hidden aria-live="polite">
+<p class="eyebrow">RESEARCH LEADS</p>
+<h2>プラン作成のための調査候補</h2>
+<p id="research-message"></p>
+<div id="research-evidence" class="evidence-list"></div>
+</section>
 <p class="status" id="status" role="status" aria-live="polite">
 </p>
 <div class="guide" aria-label="下書きの作り方">

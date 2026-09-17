@@ -12,6 +12,10 @@
   const status = document.querySelector("#status");
   const confirmation = document.querySelector("#confirmation");
   const sample = document.querySelector("#sample");
+  const research = document.querySelector("#research");
+  const researchResults = document.querySelector("#research-results");
+  const researchMessage = document.querySelector("#research-message");
+  const researchEvidence = document.querySelector("#research-evidence");
   const clear = document.querySelector("#clear");
   const heading = document.querySelector("#form-title");
   const dialog = document.querySelector("#replace-dialog");
@@ -77,6 +81,8 @@
     document.querySelector("#form-description").textContent = "9つの項目で、行き先や予算をまとめます。";
     setStep("step-input");
     status.textContent = "";
+    researchResults.hidden = true;
+    researchEvidence.replaceChildren();
     renderSummary();
     heading.focus();
   }
@@ -141,6 +147,54 @@
     if (!reviewed) return;
     setStep("step-wait");
     status.textContent = "条件ファイルのダウンロードを開始しました。調査は自動では始まりません。";
+  });
+  function link(url, label) {
+    const a = document.createElement("a");
+    a.href = url; a.target = "_blank"; a.rel = "noreferrer";
+    a.textContent = label; return a;
+  }
+  function showResearch(payload) {
+    researchEvidence.replaceChildren();
+    const evidence = payload.evidence || [];
+    researchMessage.textContent = payload.notice || payload.message || "候補を取得しました。";
+    if (!evidence.length) {
+      const empty = document.createElement("p");
+      empty.textContent = "候補を取得できませんでした。行き先の表記を変えて再度お試しください。";
+      researchEvidence.append(empty);
+    }
+    evidence.forEach((item) => {
+      const card = document.createElement("article"); card.className = "evidence-card";
+      const title = document.createElement("h3"); title.textContent = item.title || "調査候補";
+      const meta = document.createElement("p"); meta.textContent = `${item.source_type || "公開情報"}・未確認`;
+      card.append(title, meta);
+      if (item.url) card.append(link(item.url, "情報源を開く"));
+      researchEvidence.append(card);
+    });
+    researchResults.hidden = false;
+    researchResults.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  research.addEventListener("click", async () => {
+    if (!reviewed) return;
+    research.disabled = true;
+    research.textContent = "調べています…";
+    researchResults.hidden = false;
+    researchMessage.textContent = "無料の公開情報を取得しています…";
+    researchEvidence.replaceChildren();
+    try {
+      const response = await fetch("/api/free-research", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ destination: reviewed.destination })
+      });
+      showResearch(await response.json());
+      status.textContent = "調査候補を表示しました。候補の事実確認後に、詳細な旅行プランを保存できます。";
+      setStep("step-wait");
+    } catch (_) {
+      researchMessage.textContent = "情報を取得できませんでした。ネットワークを確認して、もう一度お試しください。";
+      researchResults.hidden = false;
+    } finally {
+      research.disabled = false;
+      research.innerHTML = '無料情報を調べる <span aria-hidden="true">→</span>';
+    }
   });
   renderSummary();
 })();
