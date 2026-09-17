@@ -2,31 +2,13 @@
 
 from datetime import datetime, timezone
 import json
-import os
 from pathlib import Path
 import shutil
 import subprocess
 import tempfile
 
 from travel.storage import validate_evidence_payload
-
-
-# Only local execution plumbing and configuration locations are inherited.
-# Tokens and GitHub or deployment credentials are intentionally absent.
-_SUBPROCESS_ENV_ALLOWLIST = (
-    "PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "COMSPEC", "TEMP", "TMP",
-    "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "CODEX_HOME",
-    "CLAUDE_CONFIG_DIR", "SSL_CERT_FILE", "SSL_CERT_DIR",
-)
-
-
-def safe_subprocess_env(environment=None):
-    """Build the sole environment passed to local Codex and Claude CLIs."""
-    source = os.environ if environment is None else environment
-    return {
-        key: source[key] for key in _SUBPROCESS_ENV_ALLOWLIST
-        if isinstance(source.get(key), str) and source[key]
-    }
+from travel.subprocess_env import safe_subprocess_env
 
 
 def _local_cli(name):

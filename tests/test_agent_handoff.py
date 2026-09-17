@@ -8,6 +8,7 @@ import tempfile
 
 from travel.agent_handoff import (build_research_brief, claude_review_prompt,
                                   codex_proposal_prompt, run_claude_review, run_codex_proposal)
+from travel.subprocess_env import safe_subprocess_env
 
 
 class Completed:
@@ -84,6 +85,10 @@ class AgentHandoffTests(unittest.TestCase):
                 lambda args, **kwargs: captured.append(kwargs) or Completed(),
             )
         self.assertEqual(captured[0]["env"], {"PATH": "safe-path"})
+
+    def test_safe_subprocess_environment_drops_runtime_credentials(self):
+        environment = {"PATH": "safe-path", "GITHUB_TOKEN": "github-secret", "DEPLOY_TOKEN": "deploy-secret"}
+        self.assertEqual(safe_subprocess_env(environment), {"PATH": "safe-path"})
 
     def test_codex_prompt_marks_missing_facts_as_research_needed(self):
         self.assertIn("needs_research", codex_proposal_prompt(build_research_brief({"destination": "京都"}, [])))

@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 MODULE = Path(__file__).parents[1] / "scripts" / "github_webhook_bridge.py"
@@ -55,3 +56,10 @@ class GitHubWebhookBridgeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             status, result = bridge.handle(raw, self.signed_headers(raw), self.secret, tmp)
             self.assertEqual((status, result["state"]), (202, "ignored"))
+
+    def test_autorun_does_not_inherit_github_or_deploy_credentials(self):
+        event = {"comment_id": 123, "body": "Claude → Codex"}
+        process = type("Process", (), {"stdin": None})()
+        with tempfile.TemporaryDirectory() as tmp, patch.dict("os.environ", {"PATH": "safe-path", "GITHUB_TOKEN": "secret", "DEPLOY_TOKEN": "secret"}, clear=True), patch.object(bridge.subprocess, "Popen", return_value=process) as popen:
+            bridge.run_codex(event, tmp, tmp)
+        self.assertEqual(popen.call_args.kwargs["env"], {"PATH": "safe-path"})

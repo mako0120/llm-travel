@@ -29,3 +29,5 @@ python scripts/github_webhook_bridge.py
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/start_webhook_bridge.ps1
 ```
+
+起動スクリプトは親プロセスの環境を引き継がず、Webhook に必要な設定と明示許可した実行環境だけを受信プロセスへ渡します。GitHub 書き込みトークンやデプロイ資格情報は渡しません。

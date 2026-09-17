@@ -17,6 +17,8 @@ import subprocess
 import sys
 from uuid import uuid4
 
+from travel.subprocess_env import safe_subprocess_env
+
 
 REPOSITORY = "mako0120/llm-travel"
 COMMENT_MARKER = "Claude → Codex"
@@ -70,6 +72,7 @@ change secrets, or make external purchases. Report findings in a PR or Issue com
         return subprocess.Popen(
             ["codex", "exec", "-C", str(Path(workspace).resolve()), "--sandbox", "workspace-write",
              "--approve-for-me", "--worktree", "-"], stdin=subprocess.PIPE, stdout=log, stderr=subprocess.STDOUT,
+            env=safe_subprocess_env(),
         ), prompt.encode("utf-8")
 
 
