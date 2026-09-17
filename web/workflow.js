@@ -36,7 +36,7 @@ bindResearch = function () {
   };
   const next = document.querySelector('#next-review'); if (next) next.onclick = () => render('review');
 };
-pages.review = () => baseReviewPage() + '<section class="page workflow-tools"><section class="card"><h2>手動レビューの受け渡し</h2><p>WebアプリはCodex・Claudeを起動しません。根拠パケットを保存し、明示的に実行したローカル結果だけを読み込みます。</p><div class="actions"><button class="secondary" id="download-review">実行用JSONを保存</button><label class="secondary file-button">結果JSONを読み込む<input id="review-file" type="file" accept="application/json"></label></div><div id="review-import-status" class="empty"></div></section></section>';
+pages.review = () => baseReviewPage() + '<section class="page workflow-tools"><section class="card"><h2>手動レビューの受け渡し</h2><p>WebアプリはCodex・Claudeを起動しません。根拠パケットを保存し、明示的に実行したローカル結果だけを読み込みます。</p><div class="actions"><button class="secondary" id="download-review">実行用JSONを保存</button><label class="secondary file-button">結果JSONを読み込む<input id="review-file" type="file" accept="application/json"></label></div><div id="review-import-status" class="empty"></div><div class="actions"><button class="secondary" data-go="research">← 根拠候補へ戻る</button><button class="secondary" data-go="itinerary">詳細旅程の検証画面を見る →</button></div></section></section>';
 function bindReview() {
   const output = document.querySelector('#review-import-status'); if (output) output.textContent = workflow.review ? workflow.review.summary : 'レビュー結果はまだ読み込まれていません。';
   const download = document.querySelector('#download-review'); if (download) { download.disabled = !workflow.packet.length; download.onclick = () => downloadJson('review-input-' + (workflow.runId || 'draft') + '.json', { requirements: requirements(), evidence: workflow.packet, instructions: ['Run manually: python scripts/run_dual_agent_review.py input.json output.json', 'The browser never starts agents.', 'Unverified evidence must not be saved as an itinerary.'] }); }
@@ -47,7 +47,22 @@ pages.improve = () => baseImprovementPage() + '<section class="page workflow-too
 pages.public = () => basePublicPage() + '<section class="page workflow-tools"><div id="public-api-status" class="workflow-status"><small>公開APIを確認中です。</small></div></section>';
 pages.settings = () => '<section class="page"><h1>設定 / Provider 状態</h1><p class="subtitle">研究モードと商用モードの接続条件を、根拠とともに確認します。</p><section class="card"><table><thead><tr><th>提供元</th><th>研究モード</th><th>商用モード</th></tr></thead><tbody><tr><td>Nominatim</td><td>明示検索・毎秒一件以下</td><td>自己ホストまたは商用接続が必要</td></tr><tr><td>Open-Meteo</td><td>予報候補のみ</td><td>商用ライセンスと専用接続が必要</td></tr><tr><td>Wikimedia</td><td>ライセンス付き調査候補</td><td>帰属とページ単位の利用条件を確認</td></tr><tr><td>GTFS-JP</td><td>事業者公式フィードを選択</td><td>事業者別の利用条件と鮮度を確認</td></tr><tr><td>Google / TikTok / 食べログ</td><td>未設定</td><td>許可済み公式接続のみ</td></tr></tbody></table><p>詳細な根拠と運用条件はリポジトリの <code>docs/provider-operation-policy.md</code> に記録しています。</p></section></section>';
 async function bindPublic() { const target = document.querySelector('#public-api-status'); if (!target) return; try { const data = await requestJson('/api/public/itineraries'); target.innerHTML = '<b>公開API接続済み</b><small>公開済み・検証済みプラン ' + data.itineraries.length + '件。詳細と共有は <a href="public.html">公開プランページ</a> で確認できます。</small>'; } catch (error) { target.textContent = '公開APIを読み込めません: ' + error.message; } }
-render = function (name) { baseRender(name || 'home'); if (name === 'home' || !name) persistWorkspace(); if (name === 'review') bindReview(); if (name === 'public') bindPublic(); };
-document.querySelectorAll('[data-page]').forEach(button => button.onclick = () => render(button.dataset.page));
-render('home');
+const pageName = () => location.hash.replace(/^#/, '') || 'home';
+const knownPages = new Set(['home', 'research', 'review', 'itinerary', 'improve', 'public', 'settings', 'help']);
+render = function (name) {
+  const current = knownPages.has(name) ? name : 'home';
+  baseRender(current);
+  if (current === 'home') persistWorkspace();
+  if (current === 'review') bindReview();
+  if (current === 'public') bindPublic();
+  document.querySelectorAll('[data-go]').forEach(button => button.onclick = () => navigate(button.dataset.go));
+};
+function navigate(name) {
+  if (!knownPages.has(name)) return;
+  if (pageName() === name) render(name);
+  else location.hash = name;
+}
+document.querySelectorAll('[data-page]').forEach(button => button.onclick = () => navigate(button.dataset.page));
+window.addEventListener('hashchange', () => render(pageName()));
+render(pageName());
 
