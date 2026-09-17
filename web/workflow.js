@@ -5,7 +5,7 @@ const persistWorkspace = () => localStorage.setItem(WORKSPACE_KEY, JSON.stringif
 const requestJson = async (url, options) => { const response = await fetch(url, options || {}); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.message || body.error || '処理に失敗しました。'); return body; };
 const requirements = () => ({ departure: state.departure, destination: state.destination, nights: Number(state.nights), themes: state.themes, preference: state.preference, budget: { min: state.budgetMin, max: state.budgetMax, per_person: true }, accommodation: state.accommodation, transportation: state.transport, requests: state.requests });
 const downloadJson = (name, payload) => { const href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); const link = Object.assign(document.createElement('a'), { href, download: name }); link.click(); setTimeout(() => URL.revokeObjectURL(href), 0); };
-const baseReviewPage = reviewPage, baseItineraryPage = itineraryPage, baseImprovementPage = improvementPage, basePublicPage = publicPage, baseRender = render;
+const baseResearchPage = pages.research, baseReviewPage = reviewPage, baseItineraryPage = itineraryPage, baseImprovementPage = improvementPage, basePublicPage = publicPage, baseRender = render;
 runResearch = async function () {
   const button = document.querySelector('#research') || document.querySelector('#rerun');
   if (!state.destination.trim()) { alert('行き先を入力してください。'); return; }
@@ -35,7 +35,37 @@ bindResearch = function () {
     } catch (error) { workflow.notice = error.message; persistWorkspace(); render('research'); }
   };
   const next = document.querySelector('#next-review'); if (next) next.onclick = () => render('review');
+  const manual = document.querySelector('#manual-evidence');
+  if (manual) manual.onsubmit = async event => {
+    event.preventDefault();
+    if (!workflow.runId) { alert('先に情報収集を実行してください。'); return; }
+    const form = new FormData(manual);
+    try {
+      const facts = JSON.parse(form.get('facts'));
+      if (!facts || typeof facts !== 'object' || Array.isArray(facts)) throw new Error('確認内容はJSONオブジェクトで入力してください。');
+      const saved = await requestJson('/api/research/' + encodeURIComponent(workflow.runId) + '/evidence', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent: 'human', source_type: 'official', title: form.get('title'), url: form.get('url'), facts,
+          retrieved_at: new Date().toISOString(), expires_at: form.get('expires_at'), verification_status: 'verified' })
+      });
+      workflow.packet.push(saved.evidence); workflow.hydratedRunId = null;
+      workflow.notice = '運用者が確認した根拠を記録しました。'; persistWorkspace(); render('research');
+    } catch (error) { alert(error.message); }
+  };
+  const complete = document.querySelector('#complete-research');
+  if (complete) complete.onclick = async () => {
+    if (!workflow.runId) return;
+    if (!workflow.packet.some(item => item.verification_status === 'verified')) {
+      alert('公式URLを人間が確認した検証済み根拠を、少なくとも1件記録してください。');
+      return;
+    }
+    try {
+      await requestJson('/api/research/' + encodeURIComponent(workflow.runId) + '/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ state: 'ready' }) });
+      workflow.notice = '研究ランを完了として記録しました。保存は旅程の構造検証と二つのレビュー承認後です。'; persistWorkspace(); render('review');
+    } catch (error) { alert(error.message); }
+  };
 };
+pages.research = () => baseResearchPage() + '<section class="page workflow-tools"><section class="card"><h2>検証済み根拠を手動で記録</h2><p>公式サイトを人間が確認した後にだけ入力します。候補情報を自動で verified に変更する機能ではありません。</p><form id="manual-evidence" class="manual-evidence"><label>根拠タイトル<input name="title" required maxlength="160" placeholder="例: 事業者公式時刻表（確認済み）"></label><label>公式URL<input name="url" type="url" required placeholder="https://"></label><label>失効日時（JST）<input name="expires_at" type="datetime-local" required></label><label>確認内容（JSON）<textarea name="facts" required placeholder="{&quot;line_name&quot;:&quot;...&quot;,&quot;checked_by&quot;:&quot;operator&quot;}"></textarea></label><button class="secondary" type="submit">検証済み根拠を記録</button><button class="primary" type="button" id="complete-research">研究ランを完了する</button></form></section></section>';
 async function hydrateResearchPacket() {
   if (!workflow.runId || !workflow.packet.length || workflow.hydratedRunId === workflow.runId) return;
   try {
