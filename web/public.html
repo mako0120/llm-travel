@@ -1,28 +1,4 @@
 <!doctype html>
-<html lang="ja">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>公開旅行プラン | 旅の計画</title>
-<link rel="stylesheet" href="public.css">
-<script src="public.js" defer></script>
-</head>
-<body>
-<header class="public-header"><a href="./">旅の計画</a><nav><a href="./">条件をつくる</a><a href="public.html">公開プラン</a></nav></header>
-<main>
-<section class="public-intro"><h1>公開旅行プラン</h1><p>根拠を確認して保存された旅行プランと、その改善履歴を見られます。</p></section>
-<p id="status" role="status" aria-live="polite">公開済みプランを読み込んでいます。</p>
-<section id="plan-list" class="plan-list" aria-label="公開旅行プラン一覧"></section>
-<article id="plan" hidden>
-  <header class="plan-heading"><p id="published-date"></p><h1 id="plan-title"></h1><p id="plan-meta"></p><button id="copy" type="button">このプランのリンクをコピー</button></header>
-  <div class="plan-layout">
-    <section><h2>行動予定</h2><ol id="timeline" class="timeline"></ol><section id="shared-map" class="shared-map" hidden><h2>共有マップ</h2><p>根拠確認済みの行き先を、旅程の順に表示します。</p><div id="map-canvas" aria-label="旅程の概略地図"></div><ol id="map-points"></ol></section><section class="details"><h2>食事・宿泊・費用</h2><div id="details"></div></section></section>
-    <aside id="comparison" class="comparison" hidden><h2>改善前／改善後</h2><p id="comparison-summary"></p><div class="comparison-columns"><section><h3>改善前</h3><ol id="before"></ol></section><section><h3>改善後</h3><ol id="after"></ol></section></div></aside>
-  </div>
-  <p class="evidence-note">交通・料金・営業時間などは、保存時点の根拠に基づく情報です。予約や現在の運行状況は、利用前に公式情報で確認してください。</p>
-  <section class="community"><h2>旅行者の評価</h2><p id="community-summary"></p><form id="feedback-form"><label>このプランの評価 <select name="rating" required><option value="">選択</option><option value="5">5 とても良い</option><option value="4">4 良い</option><option value="3">3 ふつう</option><option value="2">2 改善が必要</option><option value="1">1 期待と違った</option></select></label><label>感想（任意・個人情報は書かないでください）<textarea name="comment" maxlength="500"></textarea></label><button>評価を送る</button></form></section>
-</article>
-<template id="empty"><div class="empty"><h2>公開済みのプランはまだありません</h2><p>作成者が根拠確認後に公開した旅程がここに表示されます。</p></div></template>
-</main>
-</body>
-</html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>公開旅行プラン | 旅の研究所</title><link rel="stylesheet" href="public.css"><script src="public.js" defer></script></head>
+<body><header class="topbar"><a class="brand" href="workspace.html"><b>▲</b><span>旅の研究所<small>その思い出を、みんなで</small></span></a><nav><a href="workspace.html">ホーム</a><a href="workspace.html">情報収集</a><a href="workspace.html">改善管理</a><a class="active" href="public.html">公開プラン</a></nav><label class="search">⌕ <input placeholder="行きたい場所を検索…"></label><button class="notify" aria-label="通知">♧</button><span class="avatar">U</span><span class="tagline">Evidence for a better journey<br>根拠で、旅はもっとよくなる</span></header>
+<main><p id="status" role="status" aria-live="polite">公開済みプランを読み込んでいます。</p><section id="plan-list" class="plan-list" aria-label="公開旅行プラン一覧"></section><article id="plan" hidden><a class="back" href="public.html">‹ 公開プラン一覧に戻る</a><header class="hero"><div class="cover"><span class="published">● 公開中</span><span class="cover-empty">検証済みの公開旅程</span></div><div class="hero-info"><div class="tags"><span>国内</span><span>根拠確認済み</span><span id="improved-tag" hidden>改善履歴あり</span></div><h1 id="plan-title"></h1><p id="plan-description">根拠を確認して保存された旅行プランです。</p><div class="meta"><span id="plan-destination">⌖ 行き先未確認</span><span id="published-date"></span><span id="plan-slug"></span></div><div class="hero-actions"><button id="copy">⌁ 共有リンクをコピー</button><span id="community-summary">♡ まだ評価はありません</span></div></div></header><p class="freshness">!　このプランの情報は保存時点の検証済み根拠に基づきます。料金・営業状況・交通は利用前に必ず公式情報で確認してください。</p><nav class="tabs"><button class="active">プラン概要</button><button>改善比較</button><button>根拠・エビデンス</button><button>レビュー</button></nav><div class="detail-layout"><section><section class="section"><h2>1. 旅の基本情報</h2><div class="metrics" id="metrics"></div></section><section class="section"><div class="section-heading"><div><h2>2. おすすめ行程（タイムライン）</h2><p>時間ごとの行動・移動・滞在スポットを確認できます。</p></div><button class="outline" id="map-button">♧ 地図で見る</button></div><ol id="timeline" class="timeline"></ol></section><section class="section"><h2>3. 旅の見どころ・おすすめポイント</h2><div class="highlights" id="highlights"></div></section><section class="community section"><h2>旅行者の評価</h2><form id="feedback-form"><label>評価<select name="rating" required><option value="">選択</option><option value="5">5 とても良い</option><option value="4">4 良い</option><option value="3">3 ふつう</option><option value="2">2 改善が必要</option><option value="1">1 期待と違った</option></select></label><label>感想（任意・個人情報は書かないでください）<textarea name="comment" maxlength="500"></textarea></label><button>評価を送る</button></form></section></section><aside><section id="comparison" class="comparison" hidden><h2>♢ 改善比較</h2><p id="comparison-summary"></p><div class="compare-columns"><section><h3>🔒 改善前</h3><ol id="before"></ol></section><section><h3>● 改善後（公開プラン）</h3><ol id="after"></ol></section></div><div id="change-reason" class="change-reason"></div></section><section class="evidence-summary"><h2>根拠・エビデンスの概要</h2><div id="evidence-stats"></div></section></aside></div><footer class="public-footer">ⓘ このプランはローカル研究環境で生成・検証された後、公開用URLとして登録されています。個人の下書きや未検証候補は公開されません。</footer></article></main><template id="empty"><div class="empty"><h2>公開済みのプランはまだありません</h2><p>作成者が根拠確認後に公開した旅程がここに表示されます。</p></div></template></body></html>

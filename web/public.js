@@ -1,55 +1,8 @@
-const status = document.querySelector('#status');
-const plan = document.querySelector('#plan');
-const list = document.querySelector('#plan-list');
-const params = new URLSearchParams(location.search);
-const yen = new Intl.NumberFormat('ja-JP', {style: 'currency', currency: 'JPY', maximumFractionDigits: 0});
-
-function text(value) { return document.createTextNode(value ?? '未確認'); }
-function item(tag, value, className) { const node = document.createElement(tag); if (className) node.className = className; node.append(text(value)); return node; }
-function lineRow(entry) {
-  const row = document.createElement('li');
-  row.append(item('time', entry.time || '—'));
-  const body = document.createElement('div');
-  const title = document.createElement('strong'); title.append(text(entry.schedule || entry.place)); body.append(title);
-  const meta = document.createElement('p'); meta.append(text(`${entry.place || ''} · ${entry.transport_mode || '移動未確認'} ${Number.isFinite(entry.transport_duration_minutes) ? entry.transport_duration_minutes + '分' : ''}`)); body.append(meta);
-  if (entry.label) body.append(item('span', entry.label, 'label'));
-  row.append(body); return row;
-}
-function renderTimeline(target, entries) { target.replaceChildren(...(entries || []).map(lineRow)); }
-function renderDetails(itinerary) {
-  const target = document.querySelector('#details'); target.replaceChildren();
-  const food = item('p', `食事候補：${(itinerary.food_options || []).map(x => `${x.name}（評価 ${x.rating}・口コミ ${x.review_count}件）`).join(' ／ ') || '未確認'}`);
-  const stay = item('p', `宿泊候補：${(itinerary.lodging_options || []).map(x => `${x.name}（${yen.format(x.nightly_cost)}）`).join(' ／ ') || '未確認'}`);
-  const cost = itinerary.cost_totals || {}; const total = Object.values(cost).reduce((sum, value) => sum + (Number(value) || 0), 0);
-  const budget = item('p', `合計費用：${yen.format(total)}（移動 ${yen.format(cost.transport || 0)}／宿泊 ${yen.format(cost.lodging || 0)}／食事 ${yen.format(cost.food || 0)}／入場 ${yen.format(cost.admission || 0)}）`);
-  target.append(food, stay, budget);
-}
-function renderMap(itinerary) {
-  const points = itinerary.map_points || []; if (!points.length) return;
-  document.querySelector('#shared-map').hidden = false;
-  const target = document.querySelector('#map-points'); target.replaceChildren(); const canvas = document.querySelector('#map-canvas'); canvas.replaceChildren();
-  const lats = points.map(x => x.latitude), lons = points.map(x => x.longitude); const latSpan = Math.max(...lats) - Math.min(...lats) || 1; const lonSpan = Math.max(...lons) - Math.min(...lons) || 1;
-  points.forEach((point, index) => { const row = document.createElement('li'); row.append(text(`${index + 1}. ${point.label}（${point.latitude.toFixed(4)}, ${point.longitude.toFixed(4)}）`)); target.append(row); });
-  points.forEach((point, index) => { const node = document.createElement('span'); node.className = 'map-node'; node.style.left = `${12 + ((point.longitude - Math.min(...lons)) / lonSpan) * 76}%`; node.style.top = `${82 - ((point.latitude - Math.min(...lats)) / latSpan) * 64}%`; node.textContent = index + 1; node.title = point.label; canvas.append(node); });
-}
-function renderPlan(payload) {
-  list.hidden = true; plan.hidden = false; status.textContent = '';
-  const {published, itinerary, comparison} = payload;
-  document.querySelector('#plan-title').textContent = published.title;
-  document.querySelector('#published-date').textContent = `公開日 ${new Date(published.created_at).toLocaleDateString('ja-JP')}`;
-  document.querySelector('#plan-meta').textContent = `${itinerary.primary?.length || 0}件の行程 · 根拠確認済み保存版`;
-  renderTimeline(document.querySelector('#timeline'), itinerary.primary); renderMap(itinerary); renderDetails(itinerary);
-  const community = payload.community; document.querySelector('#community-summary').textContent = community.approved_count ? `参考評価 ${community.average_rating} / 5（${community.approved_count}件）— ${community.note}` : 'まだ公開済みの旅行者評価はありません。';
-  document.querySelector('#feedback-form').onsubmit = async event => { event.preventDefault(); const form = new FormData(event.currentTarget); const response = await fetch(`/api/public/itineraries/${encodeURIComponent(published.slug)}/feedback`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({rating:Number(form.get('rating')), comment:form.get('comment')})}); const data = await response.json(); status.textContent = response.ok ? data.message : data.error; if (response.ok) event.currentTarget.reset(); };
-  if (comparison?.before) { const box = document.querySelector('#comparison'); box.hidden = false; document.querySelector('#comparison-summary').textContent = comparison.summary; renderTimeline(document.querySelector('#before'), comparison.before.primary); renderTimeline(document.querySelector('#after'), itinerary.primary); }
-  document.querySelector('#copy').onclick = async () => { await navigator.clipboard.writeText(location.href); status.textContent = 'リンクをコピーしました。'; };
-}
-function renderList(itineraries) {
-  status.textContent = ''; list.replaceChildren();
-  if (!itineraries.length) { list.append(document.querySelector('#empty').content.cloneNode(true)); return; }
-  for (const record of itineraries) { const article = document.createElement('article'); article.className = 'plan-card'; const a = document.createElement('a'); a.href = `?plan=${encodeURIComponent(record.slug)}`; a.append(item('p', `公開日 ${new Date(record.created_at).toLocaleDateString('ja-JP')}`), item('h2', record.title), item('span', '行程と改善履歴を見る →')); article.append(a); list.append(article); }
-}
-async function load() {
-  try { const slug = params.get('plan'); const response = await fetch(slug ? `/api/public/itineraries/${encodeURIComponent(slug)}` : '/api/public/itineraries'); if (!response.ok) throw new Error('読み込めませんでした'); const data = await response.json(); slug ? renderPlan(data) : renderList(data.itineraries); } catch (error) { status.textContent = error.message; }
-}
-load();
+const status=document.querySelector('#status'),plan=document.querySelector('#plan'),list=document.querySelector('#plan-list'),params=new URLSearchParams(location.search),yen=new Intl.NumberFormat('ja-JP',{style:'currency',currency:'JPY',maximumFractionDigits:0});
+const text=v=>document.createTextNode(v??'未確認');const item=(tag,value,cls)=>{const node=document.createElement(tag);if(cls)node.className=cls;node.append(text(value));return node};
+function row(entry){const li=document.createElement('li');li.append(item('time',entry.time||'—'));const body=document.createElement('div');body.append(item('strong',entry.schedule||entry.place));body.append(item('p',`${entry.place||''}　${entry.transport_mode||'移動未確認'} ${Number.isFinite(entry.transport_duration_minutes)?entry.transport_duration_minutes+'分':''}`));if(entry.label)body.append(item('span',entry.label,'label'));li.append(body);return li}
+function timeline(target,entries){target.replaceChildren(...(entries||[]).map(row));}
+function stat(label,value){const box=document.createElement('div');box.append(item('small',label),item('b',value));return box}
+function renderPlan(payload){list.hidden=true;plan.hidden=false;status.textContent='';const {published,itinerary,comparison}=payload,cost=itinerary.cost_totals||{},total=Object.values(cost).reduce((a,b)=>a+(Number(b)||0),0);document.querySelector('#plan-title').textContent=published.title;document.querySelector('#published-date').textContent=`▣ ${new Date(published.created_at).toLocaleDateString('ja-JP')} 公開`;document.querySelector('#plan-slug').textContent=`⌁ ${published.slug}`;document.querySelector('#plan-destination').textContent=`⌖ ${itinerary.primary?.[0]?.place||'行き先は旅程内で確認'}`;document.querySelector('#metrics').replaceChildren(stat('日程',`${itinerary.primary?.length||0}件の行程`),stat('予算',yen.format(total)),stat('主な移動手段',itinerary.primary?.[0]?.transport_mode||'未確認'),stat('根拠',`${itinerary.evidence_ids?.length||0}件`));timeline(document.querySelector('#timeline'),itinerary.primary);const h=document.querySelector('#highlights');h.replaceChildren(...[...(itinerary.spot_alternatives||[]),...(itinerary.rainy_day_alternatives||[])].map(x=>{const card=document.createElement('article');card.append(item('b',x.spot),item('p',x.reason));return card}));if(!h.children.length)h.append(item('p','公開済みの代案はありません。'));const sourceCount=itinerary.evidence_ids?.length||0;document.querySelector('#evidence-stats').replaceChildren(stat('参照した根拠',`${sourceCount}件`),stat('最終確認日',new Date(published.created_at).toLocaleDateString('ja-JP')),stat('情報の信頼性','保存時点で verified'));const community=payload.community;document.querySelector('#community-summary').textContent=community.approved_count?`♡ ${community.average_rating} / 5（${community.approved_count}件）`:'♡ まだ評価はありません';if(comparison?.before){document.querySelector('#comparison').hidden=false;document.querySelector('#improved-tag').hidden=false;document.querySelector('#comparison-summary').textContent='改善前と公開版を、保存済みの変更理由とともに比較できます。';timeline(document.querySelector('#before'),comparison.before.primary);timeline(document.querySelector('#after'),itinerary.primary);document.querySelector('#change-reason').textContent=`改善理由：${comparison.summary}`;}document.querySelector('#copy').onclick=async()=>{await navigator.clipboard.writeText(location.href);status.textContent='共有リンクをコピーしました。'};document.querySelector('#feedback-form').onsubmit=async e=>{e.preventDefault();const form=new FormData(e.currentTarget),res=await fetch(`/api/public/itineraries/${encodeURIComponent(published.slug)}/feedback`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rating:Number(form.get('rating')),comment:form.get('comment')})}),data=await res.json();status.textContent=res.ok?data.message:data.error;if(res.ok)e.currentTarget.reset()}}
+function renderList(items){status.textContent='';if(!items.length){list.append(document.querySelector('#empty').content.cloneNode(true));return}items.forEach(record=>{const a=document.createElement('a');a.className='list-card';a.href=`?plan=${encodeURIComponent(record.slug)}`;a.append(item('small',`公開日 ${new Date(record.created_at).toLocaleDateString('ja-JP')}`),item('h2',record.title),item('span','詳細を見る →'));list.append(a)})}
+async function load(){try{const slug=params.get('plan'),res=await fetch(slug?`/api/public/itineraries/${encodeURIComponent(slug)}`:'/api/public/itineraries');if(!res.ok)throw Error('読み込めませんでした');const data=await res.json();slug?renderPlan(data):renderList(data.itineraries)}catch(e){status.textContent=e.message}}load();
