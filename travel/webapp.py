@@ -143,6 +143,36 @@ def application(environ, start_response):
             "evidence": evidence,
             "notice": "公開情報の候補です。時刻・料金・評価・営業状況は未検証のため旅程には使いません。",
         })
+    if path == "/api/workspace/runs" and method == "POST":
+        data = _read_json_body(environ)
+        if not isinstance(data, dict) or not isinstance(data.get("requirements"), dict):
+            return _bad_request(start_response, "requirements must be an object")
+        requirements = data["requirements"]
+        destination = requirements.get("destination")
+        if not isinstance(destination, str) or not destination.strip() or len(destination) > 160:
+            return _bad_request(start_response, "requirements.destination must be 1 to 160 characters")
+        repo = _repository()
+        try:
+            run = repo.create_research_run("local-workspace", requirements, data.get("source_targets", []))
+            return _json_response(start_response, {"run": run}, "201 Created")
+        except ValueError as exc:
+            return _bad_request(start_response, str(exc))
+        finally:
+            repo.close()
+    if path.startswith("/api/workspace/runs/") and path.endswith("/packet") and method == "POST":
+        run_id = path.removeprefix("/api/workspace/runs/").removesuffix("/packet").strip("/")
+        data = _read_json_body(environ)
+        candidates = data.get("evidence") if isinstance(data, dict) else None
+        if not run_id or not isinstance(candidates, list) or not candidates:
+            return _bad_request(start_response, "run id and one or more evidence candidates are required")
+        repo = _repository()
+        try:
+            saved = [repo.record_evidence(run_id, item) for item in candidates]
+            return _json_response(start_response, {"run_id": run_id, "evidence": saved, "state": "researching"}, "201 Created")
+        except ValueError as exc:
+            return _bad_request(start_response, str(exc))
+        finally:
+            repo.close()
     if path == "/api/planner" and method == "POST":
         data = _read_json_body(environ)
         if not isinstance(data, dict):

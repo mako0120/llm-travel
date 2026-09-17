@@ -75,6 +75,21 @@ class WebAppTests(unittest.TestCase):
         payload = json.loads(body)
         self.assertEqual(seen[0], "409 Conflict")
         self.assertEqual(payload["state"], "commercial_provider_configuration_required")
+
+    def test_workspace_packet_is_persisted_as_unverified_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict("os.environ", {"LLM_TRAVEL_DB": str(Path(tmp) / "travel.sqlite3")}):
+            seen, body = self.post("/api/workspace/runs", {"requirements": {"destination": "京都", "nights": 2}, "source_targets": ["nominatim"]})
+            self.assertEqual(seen[0], "201 Created")
+            run_id = json.loads(body)["run"]["id"]
+            candidate = {"agent": "provider", "source_type": "OpenStreetMap Nominatim", "url": "https://example.org/place",
+                         "title": "京都", "facts": {"latitude": "synthetic"}, "retrieved_at": "2030-01-01T00:00:00Z",
+                         "expires_at": "2030-01-02T00:00:00Z", "verification_status": "unverified"}
+            seen, body = self.post(f"/api/workspace/runs/{run_id}/packet", {"evidence": [candidate]})
+            self.assertEqual(seen[0], "201 Created")
+            self.assertEqual(json.loads(body)["evidence"][0]["verification_status"], "unverified")
+            seen, body = self.request(f"/api/research/{run_id}")
+            self.assertEqual(seen[0], "200 OK")
+            self.assertEqual(json.loads(body)["evidence"][0]["title"], "京都")
     def test_complete_conversation_creates_requested_research_run(self):
         session='ready-test';self.post('/api/planner',{'session_id':session,'message':'はい'})
         for answer in ['大阪','京都','1','グルメ','両方','50000','ホテル','公共交通','なし']:
