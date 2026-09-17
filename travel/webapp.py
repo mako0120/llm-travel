@@ -57,6 +57,38 @@ def _research_status(run):
 def application(environ, start_response):
     path = environ.get("PATH_INFO", "/")
     method = environ.get("REQUEST_METHOD", "GET")
+    if path == "/api/public/itineraries" and method == "GET":
+        repo = _repository()
+        try:
+            return _json_response(start_response, {"itineraries": repo.list_published_itineraries()})
+        finally:
+            repo.close()
+    if path.startswith("/api/public/itineraries/") and method == "GET":
+        slug = path.removeprefix("/api/public/itineraries/")
+        if not slug or "/" in slug:
+            return _bad_request(start_response, "public itinerary slug is required")
+        repo = _repository()
+        try:
+            result = repo.public_itinerary(slug)
+            if result is None:
+                return _json_response(start_response, {"error": "public itinerary not found"}, "404 Not Found")
+            return _json_response(start_response, result)
+        finally:
+            repo.close()
+    if path.startswith("/api/itineraries/") and path.endswith("/publish") and method == "POST":
+        itinerary_id = path.removeprefix("/api/itineraries/").removesuffix("/publish").strip("/")
+        data = _read_json_body(environ)
+        if not itinerary_id or not isinstance(data, dict):
+            return _bad_request(start_response, "itinerary id and JSON body are required")
+        repo = _repository()
+        try:
+            published = repo.publish_itinerary(itinerary_id, data.get("title"), data.get("slug"))
+            return _json_response(start_response, {"published": published,
+                                                   "public_url": f"/public.html?plan={published['slug']}"})
+        except ValueError as exc:
+            return _bad_request(start_response, str(exc))
+        finally:
+            repo.close()
     if path == "/api/providers" and method == "GET":
         return _json_response(start_response, {"providers": public_provider_catalog()})
     if path == "/api/free-sources" and method == "GET":
@@ -153,7 +185,9 @@ def application(environ, start_response):
                 run["fresh_verified_evidence"] = repo.fresh_verified_evidence(run_id)
                 return _json_response(start_response, {"research": _research_status(run)})
             if method == "POST" and action == "itinerary":
-                itinerary = repo.record_itinerary_proposal(run_id, data)
+                proposal = data.get("proposal", data)
+                itinerary = repo.record_itinerary_proposal(run_id, proposal, data.get("before_itinerary_id"),
+                                                            data.get("improvement_summary"))
                 return _json_response(start_response, {"itinerary": itinerary})
             return _json_response(start_response, {"error": "research endpoint not found"}, "404 Not Found")
         except ValueError as exc:

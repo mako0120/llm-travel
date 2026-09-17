@@ -151,10 +151,30 @@ class WebAppTests(unittest.TestCase):
                                     "codex": {"decision": "approved", "rationale": "Validated"}}}
             seen, body = self.post(f"/api/research/{run['id']}/itinerary", proposal)
             self.assertEqual(seen[0], "200 OK")
-            self.assertEqual(json.loads(body)["itinerary"]["rainy_day_alternatives"][0]["spot"], "Rain alternative")
+            first = json.loads(body)["itinerary"]
+            self.assertEqual(first["rainy_day_alternatives"][0]["spot"], "Rain alternative")
             seen, body = self.request(f"/api/research/{run['id']}/itinerary")
             self.assertEqual(seen[0], "200 OK")
             self.assertEqual(json.loads(body)["itinerary"]["spot_alternatives"][0]["spot"], "Alternative")
+            improved = dict(proposal, primary=[dict(primary, time="10:30", schedule="Improved visit")])
+            seen, body = self.post(f"/api/research/{run['id']}/itinerary", {"proposal": improved,
+                                  "before_itinerary_id": first["id"], "improvement_summary": "移動の余裕時間を30分増やしました。"})
+            second = json.loads(body)["itinerary"]
+            self.assertEqual(seen[0], "200 OK")
+            self.assertNotEqual(first["id"], second["id"])
+            seen, body = self.post(f"/api/itineraries/{second['id']}/publish", {"title": "公開テスト旅行"})
+            published = json.loads(body)
+            self.assertEqual(seen[0], "200 OK")
+            self.assertIn("public.html?plan=trip-", published["public_url"])
+            seen, body = self.request(f"/api/public/itineraries/{published['published']['slug']}")
+            public = json.loads(body)
+            self.assertEqual(seen[0], "200 OK")
+            self.assertEqual(public["itinerary"]["id"], second["id"])
+            self.assertEqual(public["comparison"]["before"]["id"], first["id"])
+            self.assertEqual(public["comparison"]["summary"], "移動の余裕時間を30分増やしました。")
+            seen, body = self.request("/api/public/itineraries")
+            self.assertEqual(seen[0], "200 OK")
+            self.assertEqual(json.loads(body)["itineraries"][0]["slug"], published["published"]["slug"])
         seen = []
         body = b''.join(application({'PATH_INFO': '/api/planner', 'REQUEST_METHOD': 'POST',
                                      'CONTENT_LENGTH': '7', 'wsgi.input': io.BytesIO(b'{broken')},

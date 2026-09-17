@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>公開旅行プラン | 旅の計画</title>
+<link rel="stylesheet" href="public.css">
+<script src="public.js" defer></script>
+</head>
+<body>
+<header class="public-header"><a href="./">旅の計画</a><nav><a href="./">条件をつくる</a><a href="public.html">公開プラン</a></nav></header>
+<main>
+<section class="public-intro"><h1>公開旅行プラン</h1><p>根拠を確認して保存された旅行プランと、その改善履歴を見られます。</p></section>
+<p id="status" role="status" aria-live="polite">公開済みプランを読み込んでいます。</p>
+<section id="plan-list" class="plan-list" aria-label="公開旅行プラン一覧"></section>
+<article id="plan" hidden>
+  <header class="plan-heading"><p id="published-date"></p><h1 id="plan-title"></h1><p id="plan-meta"></p><button id="copy" type="button">このプランのリンクをコピー</button></header>
+  <div class="plan-layout">
+    <section><h2>行動予定</h2><ol id="timeline" class="timeline"></ol><section class="details"><h2>食事・宿泊・費用</h2><div id="details"></div></section></section>
+    <aside id="comparison" class="comparison" hidden><h2>改善前／改善後</h2><p id="comparison-summary"></p><div class="comparison-columns"><section><h3>改善前</h3><ol id="before"></ol></section><section><h3>改善後</h3><ol id="after"></ol></section></div></aside>
+  </div>
+  <p class="evidence-note">交通・料金・営業時間などは、保存時点の根拠に基づく情報です。予約や現在の運行状況は、利用前に公式情報で確認してください。</p>
+</article>
+<template id="empty"><div class="empty"><h2>公開済みのプランはまだありません</h2><p>作成者が根拠確認後に公開した旅程がここに表示されます。</p></div></template>
+</main>
+</body>
+</html>

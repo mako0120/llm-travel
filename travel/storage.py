@@ -140,6 +140,21 @@ class Repository:
                     created_at TEXT NOT NULL,
                     FOREIGN KEY(run_id) REFERENCES research_runs(id)
                 );
+                CREATE TABLE IF NOT EXISTS itinerary_improvements (
+                    after_itinerary_id TEXT PRIMARY KEY,
+                    before_itinerary_id TEXT NOT NULL,
+                    summary TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(after_itinerary_id) REFERENCES itinerary_proposals(id),
+                    FOREIGN KEY(before_itinerary_id) REFERENCES itinerary_proposals(id)
+                );
+                CREATE TABLE IF NOT EXISTS published_itineraries (
+                    slug TEXT PRIMARY KEY,
+                    itinerary_id TEXT NOT NULL UNIQUE,
+                    title TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(itinerary_id) REFERENCES itinerary_proposals(id)
+                );
                 CREATE TABLE IF NOT EXISTS preference_signals (
                     id TEXT PRIMARY KEY,
                     profile_id TEXT NOT NULL,
@@ -408,7 +423,7 @@ class Repository:
             return []
         return [item for item in run["evidence"] if item["verification_status"] == "verified" and _timestamp(item["expires_at"]) > now]
 
-    def record_itinerary_proposal(self, run_id, proposal):
+    def record_itinerary_proposal(self, run_id, proposal, before_itinerary_id=None, improvement_summary=None):
         """Store a reviewed itinerary only when every displayed option has fresh evidence."""
         _identifier(run_id)
         if not isinstance(proposal, dict):
@@ -427,10 +442,21 @@ class Repository:
         verified_ids = {item["id"] for item in self.fresh_verified_evidence(run_id)}
         if not cited_evidence_ids <= verified_ids:
             raise ValueError("every itinerary option needs fresh verified evidence from this research run")
+        if before_itinerary_id is not None:
+            _identifier(before_itinerary_id)
+            if not isinstance(improvement_summary, str) or not improvement_summary.strip() or len(improvement_summary) > 1600:
+                raise ValueError("an improvement summary of at most 1600 characters is required")
+            if self.get_itinerary_proposal(before_itinerary_id) is None:
+                raise ValueError("before itinerary does not exist")
+        elif improvement_summary is not None:
+            raise ValueError("improvement summary requires a before itinerary")
         record = dict(proposal, id=str(uuid4()), run_id=run_id, created_at=_now())
         with self._lock, self._connection:
             self._connection.execute("INSERT INTO itinerary_proposals VALUES (?, ?, ?, ?)",
                                      (record["id"], run_id, _json(record), record["created_at"]))
+            if before_itinerary_id is not None:
+                self._connection.execute("INSERT INTO itinerary_improvements VALUES (?, ?, ?, ?)",
+                                         (record["id"], before_itinerary_id, improvement_summary.strip(), _now()))
         return json.loads(_json(record))
 
     def latest_itinerary_proposal(self, run_id):
@@ -440,6 +466,53 @@ class Repository:
                 "SELECT document FROM itinerary_proposals WHERE run_id = ? ORDER BY created_at DESC, id DESC LIMIT 1", (run_id,)
             ).fetchone()
         return json.loads(row["document"]) if row else None
+
+    def get_itinerary_proposal(self, itinerary_id):
+        _identifier(itinerary_id)
+        with self._lock:
+            row = self._connection.execute("SELECT document FROM itinerary_proposals WHERE id = ?", (itinerary_id,)).fetchone()
+        return json.loads(row["document"]) if row else None
+
+    def publish_itinerary(self, itinerary_id, title, slug=None):
+        """Publish an immutable itinerary only after an explicit operator action."""
+        _identifier(itinerary_id)
+        if not isinstance(title, str) or not title.strip() or len(title) > 160:
+            raise ValueError("title must be 1 to 160 characters")
+        itinerary = self.get_itinerary_proposal(itinerary_id)
+        if itinerary is None:
+            raise ValueError("itinerary does not exist")
+        if slug is None:
+            slug = f"trip-{uuid4().hex[:12]}"
+        if not isinstance(slug, str) or not slug.startswith("trip-") or not slug[5:].isalnum() or len(slug) > 64:
+            raise ValueError("slug must be a trip-prefixed alphanumeric identifier")
+        record = {"slug": slug, "itinerary_id": itinerary_id, "title": title.strip(), "created_at": _now()}
+        with self._lock, self._connection:
+            existing = self._connection.execute("SELECT * FROM published_itineraries WHERE itinerary_id = ?", (itinerary_id,)).fetchone()
+            if existing is not None:
+                return dict(existing)
+            self._connection.execute("INSERT INTO published_itineraries VALUES (?, ?, ?, ?)", tuple(record.values()))
+        return record
+
+    def list_published_itineraries(self):
+        with self._lock:
+            rows = self._connection.execute("SELECT * FROM published_itineraries ORDER BY created_at DESC, slug DESC").fetchall()
+        return [dict(row) for row in rows]
+
+    def public_itinerary(self, slug):
+        _identifier(slug)
+        with self._lock:
+            published = self._connection.execute("SELECT * FROM published_itineraries WHERE slug = ?", (slug,)).fetchone()
+            if published is None:
+                return None
+            itinerary = self._connection.execute("SELECT document FROM itinerary_proposals WHERE id = ?", (published["itinerary_id"],)).fetchone()
+            improvement = self._connection.execute("SELECT * FROM itinerary_improvements WHERE after_itinerary_id = ?", (published["itinerary_id"],)).fetchone()
+            before = None
+            if improvement is not None:
+                row = self._connection.execute("SELECT document FROM itinerary_proposals WHERE id = ?", (improvement["before_itinerary_id"],)).fetchone()
+                before = json.loads(row["document"]) if row else None
+        return {"published": dict(published), "itinerary": json.loads(itinerary["document"]),
+                "comparison": None if improvement is None else {"before": before, "summary": improvement["summary"],
+                                                                  "created_at": improvement["created_at"]}}
 
     def add_preference_signal(self, profile_id, preference_key, preference_value, weight, source_feedback_id=None):
         _identifier(profile_id)
