@@ -248,3 +248,35 @@ class WebAppTests(unittest.TestCase):
                                      'CONTENT_LENGTH': '7', 'wsgi.input': io.BytesIO(b'{broken')},
                                     lambda status, headers: seen.extend([status, headers])))
         self.assertEqual(seen[0], '400 Bad Request')
+
+    def test_auto_worker_status_api_reads_latest_result_without_starting_worker(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict("os.environ", {"LLM_TRAVEL_DB": str(Path(tmp) / "travel.sqlite3")}):
+            repo = travel.webapp._repository()
+            try:
+                run = repo.create_research_run("profile-test", {"destination": "京都"}, [])
+                repo.record_auto_worker_result(run["id"], {
+                    "outcome": "unresolved",
+                    "reason": "codex reported needs_research",
+                    "missing_evidence": ["公式営業時間", "公式運賃"],
+                    "evidence_collected": 4,
+                })
+            finally:
+                repo.close()
+            seen, body = self.request(f"/api/workspace/runs/{run['id']}/auto-worker-status")
+            self.assertEqual(seen[0], "200 OK")
+            payload = json.loads(body)
+            self.assertEqual(payload["run_id"], run["id"])
+            self.assertEqual(payload["auto_worker"]["outcome"], "unresolved")
+            self.assertEqual(payload["auto_worker"]["missing_evidence"], ["公式営業時間", "公式運賃"])
+            self.assertIn("never starts the worker", payload["notice"])
+
+    def test_auto_worker_status_api_returns_null_before_worker_result(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict("os.environ", {"LLM_TRAVEL_DB": str(Path(tmp) / "travel.sqlite3")}):
+            repo = travel.webapp._repository()
+            try:
+                run = repo.create_research_run("profile-test", {"destination": "京都"}, [])
+            finally:
+                repo.close()
+            seen, body = self.request(f"/api/workspace/runs/{run['id']}/auto-worker-status")
+            self.assertEqual(seen[0], "200 OK")
+            self.assertIsNone(json.loads(body)["auto_worker"])
