@@ -104,6 +104,21 @@ class WebAppTests(unittest.TestCase):
             self.assertEqual(seen[0], "200 OK")
             self.assertEqual(json.loads(body)["evidence"][0]["title"], "京都")
 
+    def test_research_draft_is_automatically_derivable_from_persisted_candidates(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict("os.environ", {"LLM_TRAVEL_DB": str(Path(tmp) / "travel.sqlite3")}):
+            _, body = self.post("/api/workspace/runs", {"requirements": {"destination": "京都", "nights": 2}, "source_targets": []})
+            run_id = json.loads(body)["run"]["id"]
+            candidate = {"agent": "provider", "source_type": "Wikimedia", "url": "https://example.org/kyoto",
+                         "title": "京都の候補", "facts": {"description": "candidate"}, "retrieved_at": "2030-01-01T00:00:00Z",
+                         "expires_at": "2030-01-02T00:00:00Z", "verification_status": "unverified"}
+            self.post(f"/api/workspace/runs/{run_id}/packet", {"evidence": [candidate]})
+            seen, body = self.post(f"/api/workspace/runs/{run_id}/draft", {})
+            draft = json.loads(body)["draft"]
+            self.assertEqual(seen[0], "200 OK")
+            self.assertEqual(draft["status"], "needs_research")
+            self.assertEqual(len(draft["days"]), 3)
+            self.assertEqual(draft["days"][0]["time"], "未確定")
+
     def test_agent_web_research_request_and_unverified_import(self):
         with tempfile.TemporaryDirectory() as tmp, patch.dict("os.environ", {"LLM_TRAVEL_DB": str(Path(tmp) / "travel.sqlite3")}):
             _, body = self.post("/api/workspace/runs", {"requirements": {"destination": "京都"}, "source_targets": []})

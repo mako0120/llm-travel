@@ -10,6 +10,7 @@ from travel.planner import PlannerSession, next_turn, research_request
 from travel.providers import public_provider_catalog
 from travel.free_sources import NominatimAdapter, OpenMeteoAdapter, WikimediaAdapter, public_result_evidence, public_source_catalog
 from travel.agent_research import agent_web_research_request, validate_agent_web_evidence
+from travel.draft_itinerary import create_research_draft
 
 
 ROOT = Path(__file__).resolve().parents[1] / "web"
@@ -191,6 +192,20 @@ def application(environ, start_response):
         try:
             saved = [repo.record_evidence(run_id, item) for item in candidates]
             return _json_response(start_response, {"run_id": run_id, "evidence": saved, "state": "researching"}, "201 Created")
+        except ValueError as exc:
+            return _bad_request(start_response, str(exc))
+        finally:
+            repo.close()
+    if path.startswith("/api/workspace/runs/") and path.endswith("/draft") and method == "POST":
+        run_id = path.removeprefix("/api/workspace/runs/").removesuffix("/draft").strip("/")
+        if not run_id:
+            return _bad_request(start_response, "research run id is required")
+        repo = _repository()
+        try:
+            run = repo.get_research_run(run_id)
+            if run is None:
+                return _json_response(start_response, {"error": "research run not found"}, "404 Not Found")
+            return _json_response(start_response, {"draft": create_research_draft(run["requirements"], run["evidence"])})
         except ValueError as exc:
             return _bad_request(start_response, str(exc))
         finally:

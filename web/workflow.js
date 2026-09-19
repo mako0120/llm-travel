@@ -1,5 +1,5 @@
 const WORKSPACE_KEY = 'llm-travel-workspace-v2';
-const workflow = { runId: null, packet: [], review: null, notice: '', hydratedRunId: null };
+const workflow = { runId: null, packet: [], draft: null, review: null, notice: '', hydratedRunId: null };
 try { const restored = JSON.parse(localStorage.getItem(WORKSPACE_KEY) || '{}'); if (restored.conditions) Object.assign(state, restored.conditions); Object.assign(workflow, restored.workflow || {}); } catch (_) {}
 const persistWorkspace = () => localStorage.setItem(WORKSPACE_KEY, JSON.stringify({ conditions: state, workflow }));
 const requestJson = async (url, options) => { const response = await fetch(url, options || {}); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.message || body.error || '処理に失敗しました。'); return body; };
@@ -11,14 +11,17 @@ runResearch = async function () {
   if (!state.destination.trim()) { alert('行き先を入力してください。'); return; }
   if (button) { button.disabled = true; button.textContent = '公開情報を取得中…'; }
   try {
-    const results = await Promise.all([
-      requestJson('/api/free-research', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ destination: state.destination }) }),
-      requestJson('/api/workspace/runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requirements: requirements(), source_targets: ['nominatim', 'wikimedia', 'open_meteo'] }) })
-    ]);
-    evidence = results[0].evidence || []; selectedEvidence = new Set(); packetCreated = false;
-    workflow.runId = results[1].run.id; workflow.packet = []; workflow.review = null; workflow.hydratedRunId = null;
-    workflow.notice = '研究ランを作成しました。候補を選択して根拠パケットへ保存してください。';
-    persistWorkspace(); render('research');
+    const research = await requestJson('/api/free-research', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ destination: state.destination }) });
+    evidence = research.evidence || [];
+    const created = await requestJson('/api/workspace/runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requirements: requirements(), source_targets: ['nominatim', 'wikimedia', 'open_meteo'] }) });
+    workflow.runId = created.run.id; workflow.packet = []; workflow.draft = null; workflow.review = null; workflow.hydratedRunId = null;
+    if (!evidence.length) throw new Error('旅程下書きを作る候補が取得できませんでした。再検索してください。');
+    const saved = await requestJson('/api/workspace/runs/' + encodeURIComponent(workflow.runId) + '/packet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ evidence }) });
+    workflow.packet = saved.evidence; selectedEvidence = new Set(evidence.map((_, index) => index)); packetCreated = true;
+    const drafted = await requestJson('/api/workspace/runs/' + encodeURIComponent(workflow.runId) + '/draft', { method: 'POST' });
+    workflow.draft = drafted.draft;
+    workflow.notice = '情報収集が完了し、' + saved.evidence.length + '件の未検証根拠から旅程下書きを自動生成しました。確認へ進んでください。';
+    persistWorkspace(); navigate('review');
   } catch (error) { workflow.notice = error.message; persistWorkspace(); alert(error.message); } finally { if (button) button.disabled = false; }
 };
 bindResearch = function () {
@@ -31,7 +34,7 @@ bindResearch = function () {
     packet.disabled = true; packet.textContent = 'SQLiteへ保存中…';
     try {
       const saved = await requestJson('/api/workspace/runs/' + encodeURIComponent(workflow.runId) + '/packet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ evidence: chosen }) });
-      workflow.packet = saved.evidence; workflow.notice = saved.evidence.length + '件を根拠パケットへ保存しました。すべて未検証です。'; packetCreated = true; persistWorkspace(); render('research');
+      workflow.packet = saved.evidence; const drafted = await requestJson('/api/workspace/runs/' + encodeURIComponent(workflow.runId) + '/draft', { method: 'POST' }); workflow.draft = drafted.draft; workflow.notice = saved.evidence.length + '件を根拠パケットへ保存し、旅程下書きを更新しました。すべて未検証です。'; packetCreated = true; persistWorkspace(); render('research');
     } catch (error) { workflow.notice = error.message; persistWorkspace(); render('research'); }
   };
   const next = document.querySelector('#next-review'); if (next) next.onclick = () => render('review');
@@ -99,7 +102,7 @@ async function hydrateResearchPacket() {
     persistWorkspace();
   }
 }
-pages.review = () => baseReviewPage() + '<section class="page workflow-tools"><section class="card"><h2>手動レビューの受け渡し</h2><p>WebアプリはCodex・Claudeを起動しません。根拠パケットを保存し、明示的に実行したローカル結果だけを読み込みます。</p><div class="actions"><button class="secondary" id="download-review">実行用JSONを保存</button><label class="secondary file-button">結果JSONを読み込む<input id="review-file" type="file" accept="application/json"></label></div><div id="review-import-status" class="empty"></div><div class="actions"><button class="secondary" data-go="research">← 根拠候補へ戻る</button><button class="secondary" data-go="itinerary">詳細旅程の検証画面を見る →</button></div></section></section>';
+pages.review = () => baseReviewPage() + '<section class="page workflow-tools"><section class="card auto-draft"><h2>情報収集から自動生成した旅程下書き <span class="chip research">needs_research</span></h2>' + (workflow.draft ? '<p>' + esc(workflow.draft.notice) + '</p><h3>' + esc(workflow.draft.title) + '</h3><ol>' + workflow.draft.days.map(day => '<li><b>' + day.day + '日目・' + esc(day.label) + '</b>　' + esc(day.focus) + '<br><small>根拠: ' + esc(day.source) + ' ／ 時刻・移動・費用: 未確定</small></li>').join('') + '</ol><div class="save-block"><b>保存・公開はブロック中</b><p>' + esc(workflow.draft.save_blocked_reason) + '</p></div>' : '<p class="empty">情報収集を実行すると、ここに自動生成された下書きが表示されます。</p>') + '</section><section class="card"><h2>手動レビューの受け渡し</h2><p>WebアプリはCodex・Claudeを起動しません。根拠パケットを保存し、明示的に実行したローカル結果だけを読み込みます。</p><div class="actions"><button class="secondary" id="download-review">実行用JSONを保存</button><label class="secondary file-button">結果JSONを読み込む<input id="review-file" type="file" accept="application/json"></label></div><div id="review-import-status" class="empty"></div><div class="actions"><button class="secondary" data-go="research">← 根拠候補へ戻る</button><button class="secondary" data-go="itinerary">詳細旅程の検証画面を見る →</button></div></section></section>';
 function bindReview() {
   const output = document.querySelector('#review-import-status'); if (output) output.textContent = workflow.review ? workflow.review.summary : 'レビュー結果はまだ読み込まれていません。';
   const download = document.querySelector('#download-review'); if (download) { download.disabled = !workflow.packet.length; download.onclick = () => downloadJson('review-input-' + (workflow.runId || 'draft') + '.json', { requirements: requirements(), evidence: workflow.packet, instructions: ['Run manually: python scripts/run_dual_agent_review.py input.json output.json', 'The browser never starts agents.', 'Unverified evidence must not be saved as an itinerary.'] }); }
