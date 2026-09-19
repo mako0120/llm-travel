@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 MODULE = Path(__file__).parents[1] / "scripts" / "github_webhook_bridge.py"
@@ -24,6 +25,16 @@ class GitHubWebhookBridgeTests(unittest.TestCase):
         return {"action": "created", "repository": {"full_name": "mako0120/llm-travel"},
                 "issue": {"number": 16}, "comment": {"id": 123, "html_url": "https://example.test/c/123", "body": body,
                                                            "user": {"login": "mako0120"}}}
+
+    def workflow_failure_payload(self):
+        return {"action": "completed", "repository": {"full_name": "mako0120/llm-travel"},
+                "workflow_run": {"conclusion": "failure", "html_url": "https://example.test/run/1",
+                                 "pull_requests": [{"number": 53}]}}
+
+    def conflict_payload(self):
+        return {"action": "synchronize", "repository": {"full_name": "mako0120/llm-travel"},
+                "pull_request": {"number": 53, "mergeable_state": "dirty", "html_url": "https://example.test/pr/53",
+                                 "head": {"ref": "codex/cx026-personalized-research"}}}
 
     def test_signed_claude_comment_is_queued(self):
         raw = json.dumps(self.payload()).encode()
@@ -55,3 +66,25 @@ class GitHubWebhookBridgeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             status, result = bridge.handle(raw, self.signed_headers(raw), self.secret, tmp)
             self.assertEqual((status, result["state"]), (202, "ignored"))
+
+    def test_agent_attribute_comment_is_accepted(self):
+        raw = json.dumps(self.payload('{"agent":"claude","task_id":"CL-100"}')).encode()
+        with tempfile.TemporaryDirectory() as tmp:
+            status, result = bridge.handle(raw, self.signed_headers(raw), self.secret, tmp)
+            self.assertEqual((status, result["state"]), (202, "queued"))
+
+    def test_failed_ci_and_codex_conflict_are_queued(self):
+        for event_type, payload in (("workflow_run", self.workflow_failure_payload()), ("pull_request", self.conflict_payload())):
+            raw = json.dumps(payload).encode()
+            with tempfile.TemporaryDirectory() as tmp:
+                status, result = bridge.handle(raw, self.signed_headers(raw, event_type), self.secret, tmp)
+                self.assertEqual((status, result["state"]), (202, "queued"))
+                queued = json.loads(Path(result["event"]).read_text(encoding="utf-8"))
+                self.assertIn(queued["kind"], {"ci_failure", "merge_conflict"})
+
+    def test_autorun_does_not_inherit_github_or_deploy_credentials(self):
+        event = {"comment_id": 123, "body": "Claude → Codex"}
+        process = type("Process", (), {"stdin": None})()
+        with tempfile.TemporaryDirectory() as tmp, patch.dict("os.environ", {"PATH": "safe-path", "GITHUB_TOKEN": "secret", "DEPLOY_TOKEN": "secret"}, clear=True), patch.object(bridge.subprocess, "Popen", return_value=process) as popen:
+            bridge.run_codex(event, tmp, tmp)
+        self.assertEqual(popen.call_args.kwargs["env"], {"PATH": "safe-path"})

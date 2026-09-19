@@ -3,11 +3,14 @@ from http import HTTPStatus
 import json
 import os
 from pathlib import Path
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlsplit
 from wsgiref.simple_server import make_server
 from travel.storage import Repository
 from travel.planner import PlannerSession, next_turn, research_request
 from travel.providers import public_provider_catalog
+from travel.free_sources import NominatimAdapter, OpenMeteoAdapter, WikimediaAdapter, public_result_evidence, public_source_catalog
+from travel.agent_research import agent_web_research_request, validate_agent_web_evidence
+from travel.draft_itinerary import create_research_draft
 
 
 ROOT = Path(__file__).resolve().parents[1] / "web"
@@ -30,6 +33,25 @@ def _read_json_body(environ):
 def _bad_request(start_response, message):
     start_response("400 Bad Request", [("Content-Type", "application/json; charset=utf-8")])
     return [json.dumps({"error": message}, ensure_ascii=False).encode("utf-8")]
+
+
+def _forbidden(start_response, message):
+    start_response("403 Forbidden", [("Content-Type", "application/json; charset=utf-8")])
+    return [json.dumps({"error": message}, ensure_ascii=False).encode("utf-8")]
+
+
+def _same_origin_request(environ):
+    """Reject cross-site browser writes; local non-browser development calls remain supported."""
+    if environ.get("HTTP_SEC_FETCH_SITE", "").lower() == "cross-site":
+        return False
+    origin = environ.get("HTTP_ORIGIN")
+    if not origin:
+        return True
+    parsed = urlsplit(origin)
+    if parsed.scheme != "http" or parsed.path or parsed.query or parsed.fragment:
+        return False
+    allowed_ports = {str(os.environ.get("LLM_TRAVEL_PORT", "8765")), "8765"}
+    return parsed.hostname in {"127.0.0.1", "localhost"} and str(parsed.port or 80) in allowed_ports
 
 
 def _repository():
@@ -56,8 +78,159 @@ def _research_status(run):
 def application(environ, start_response):
     path = environ.get("PATH_INFO", "/")
     method = environ.get("REQUEST_METHOD", "GET")
+    if method in {"POST", "PUT", "PATCH", "DELETE"} and path.startswith("/api/") and not _same_origin_request(environ):
+        return _forbidden(start_response, "cross-origin browser requests are not allowed")
+    if path == "/api/public/itineraries" and method == "GET":
+        repo = _repository()
+        try:
+            return _json_response(start_response, {"itineraries": repo.list_published_itineraries()})
+        finally:
+            repo.close()
+    if path.startswith("/api/public/itineraries/") and method == "GET":
+        slug = path.removeprefix("/api/public/itineraries/")
+        if not slug or "/" in slug:
+            return _bad_request(start_response, "public itinerary slug is required")
+        repo = _repository()
+        try:
+            result = repo.public_itinerary(slug)
+            if result is None:
+                return _json_response(start_response, {"error": "public itinerary not found"}, "404 Not Found")
+            return _json_response(start_response, result)
+        finally:
+            repo.close()
+    if path.startswith("/api/public/itineraries/") and path.endswith("/feedback") and method == "POST":
+        slug = path.removeprefix("/api/public/itineraries/").removesuffix("/feedback").strip("/")
+        data = _read_json_body(environ)
+        if not slug or not isinstance(data, dict):
+            return _bad_request(start_response, "public itinerary slug and JSON body are required")
+        repo = _repository()
+        try:
+            feedback = repo.add_public_feedback(slug, data.get("rating"), data.get("comment", ""))
+            return _json_response(start_response, {"feedback": feedback,
+                "message": "評価を受け付けました。公開前に確認されます。"}, "202 Accepted")
+        except ValueError as exc:
+            return _bad_request(start_response, str(exc))
+        finally:
+            repo.close()
+    if path.startswith("/api/itineraries/") and path.endswith("/publish") and method == "POST":
+        itinerary_id = path.removeprefix("/api/itineraries/").removesuffix("/publish").strip("/")
+        data = _read_json_body(environ)
+        if not itinerary_id or not isinstance(data, dict):
+            return _bad_request(start_response, "itinerary id and JSON body are required")
+        repo = _repository()
+        try:
+            published = repo.publish_itinerary(itinerary_id, data.get("title"), data.get("slug"))
+            return _json_response(start_response, {"published": published,
+                                                   "public_url": f"/public.html?plan={published['slug']}"})
+        except ValueError as exc:
+            return _bad_request(start_response, str(exc))
+        finally:
+            repo.close()
     if path == "/api/providers" and method == "GET":
         return _json_response(start_response, {"providers": public_provider_catalog()})
+    if path == "/api/free-sources" and method == "GET":
+        return _json_response(start_response, {"sources": [item.__dict__ for item in public_source_catalog()]})
+    if path == "/api/free-research" and method == "POST":
+        data = _read_json_body(environ)
+        if not isinstance(data, dict) or not isinstance(data.get("destination"), str):
+            return _bad_request(start_response, "destination must be a string")
+        destination = data["destination"].strip()
+        if not destination or len(destination) > 160:
+            return _bad_request(start_response, "destination must be 1 to 160 characters")
+        if os.environ.get("LLM_TRAVEL_DEPLOYMENT_MODE", "research").lower() == "commercial":
+            return _json_response(start_response, {
+                "state": "commercial_provider_configuration_required",
+                "message": "商用モードでは公開共有 API を呼び出しません。各情報源の商用契約・自己ホスト・ライセンス確認済み接続を設定してください。",
+                "sources": [item.__dict__ for item in public_source_catalog()],
+            }, "409 Conflict")
+        # These are bounded, user-triggered requests.  Results stay unverified
+        # until an operator reviews them against an authoritative source.
+        geocode = NominatimAdapter().search_destination(destination)
+        results = [geocode, WikimediaAdapter().search_destination(destination)]
+        if geocode.state == "available" and geocode.value and isinstance(geocode.value[0], dict):
+            place = geocode.value[0]
+            try:
+                results.append(OpenMeteoAdapter().forecast(float(place["lat"]), float(place["lon"])))
+            except (KeyError, TypeError, ValueError):
+                pass
+        evidence = []
+        for result in results:
+            try:
+                evidence.extend(public_result_evidence(result))
+            except ValueError:
+                continue
+        return _json_response(start_response, {
+            "destination": destination,
+            "results": [{"provider": result.provider, "state": result.state,
+                         "value": result.value, "version": result.version} for result in results],
+            "evidence": evidence,
+            "notice": "公開情報の候補です。時刻・料金・評価・営業状況は未検証のため旅程には使いません。",
+        })
+    if path == "/api/workspace/runs" and method == "POST":
+        data = _read_json_body(environ)
+        if not isinstance(data, dict) or not isinstance(data.get("requirements"), dict):
+            return _bad_request(start_response, "requirements must be an object")
+        requirements = data["requirements"]
+        destination = requirements.get("destination")
+        if not isinstance(destination, str) or not destination.strip() or len(destination) > 160:
+            return _bad_request(start_response, "requirements.destination must be 1 to 160 characters")
+        repo = _repository()
+        try:
+            run = repo.create_research_run("local-workspace", requirements, data.get("source_targets", []))
+            return _json_response(start_response, {"run": run}, "201 Created")
+        except ValueError as exc:
+            return _bad_request(start_response, str(exc))
+        finally:
+            repo.close()
+    if path.startswith("/api/workspace/runs/") and path.endswith("/packet") and method == "POST":
+        run_id = path.removeprefix("/api/workspace/runs/").removesuffix("/packet").strip("/")
+        data = _read_json_body(environ)
+        candidates = data.get("evidence") if isinstance(data, dict) else None
+        if not run_id or not isinstance(candidates, list) or not candidates:
+            return _bad_request(start_response, "run id and one or more evidence candidates are required")
+        repo = _repository()
+        try:
+            saved = [repo.record_evidence(run_id, item) for item in candidates]
+            return _json_response(start_response, {"run_id": run_id, "evidence": saved, "state": "researching"}, "201 Created")
+        except ValueError as exc:
+            return _bad_request(start_response, str(exc))
+        finally:
+            repo.close()
+    if path.startswith("/api/workspace/runs/") and path.endswith("/draft") and method == "POST":
+        run_id = path.removeprefix("/api/workspace/runs/").removesuffix("/draft").strip("/")
+        if not run_id:
+            return _bad_request(start_response, "research run id is required")
+        repo = _repository()
+        try:
+            run = repo.get_research_run(run_id)
+            if run is None:
+                return _json_response(start_response, {"error": "research run not found"}, "404 Not Found")
+            return _json_response(start_response, {"draft": create_research_draft(run["requirements"], run["evidence"])})
+        except ValueError as exc:
+            return _bad_request(start_response, str(exc))
+        finally:
+            repo.close()
+    if path.startswith("/api/workspace/runs/") and path.endswith("/agent-research") and method == "POST":
+        run_id = path.removeprefix("/api/workspace/runs/").removesuffix("/agent-research").strip("/")
+        data = _read_json_body(environ)
+        if not run_id or not isinstance(data, dict):
+            return _bad_request(start_response, "run id and JSON body are required")
+        repo = _repository()
+        try:
+            if data.get("action") == "request":
+                run = repo.get_research_run(run_id)
+                if run is None:
+                    return _json_response(start_response, {"error": "research run not found"}, "404 Not Found")
+                return _json_response(start_response, {"request": agent_web_research_request(run["requirements"]), "state": run["state"]})
+            candidates = data.get("evidence")
+            if not isinstance(candidates, list) or not candidates:
+                return _bad_request(start_response, "agent research evidence is required")
+            saved = [repo.record_evidence(run_id, validate_agent_web_evidence(item)) for item in candidates]
+            return _json_response(start_response, {"run_id": run_id, "evidence": saved, "state": "researching"}, "201 Created")
+        except ValueError as exc:
+            return _bad_request(start_response, str(exc))
+        finally:
+            repo.close()
     if path == "/api/planner" and method == "POST":
         data = _read_json_body(environ)
         if not isinstance(data, dict):
@@ -114,7 +287,9 @@ def application(environ, start_response):
                 run["fresh_verified_evidence"] = repo.fresh_verified_evidence(run_id)
                 return _json_response(start_response, {"research": _research_status(run)})
             if method == "POST" and action == "itinerary":
-                itinerary = repo.record_itinerary_proposal(run_id, data)
+                proposal = data.get("proposal", data)
+                itinerary = repo.record_itinerary_proposal(run_id, proposal, data.get("before_itinerary_id"),
+                                                            data.get("improvement_summary"))
                 return _json_response(start_response, {"itinerary": itinerary})
             return _json_response(start_response, {"error": "research endpoint not found"}, "404 Not Found")
         except ValueError as exc:

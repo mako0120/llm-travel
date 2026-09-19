@@ -170,6 +170,19 @@ h1 {
   color:var(--muted);
   margin-bottom:16px;
 }
+.research-results {
+  margin-top:28px;
+  padding:24px;
+  border:1px solid var(--border);
+  background:var(--sage);
+}
+.research-results h2 { font:700 24px/1.4 var(--serif); margin-bottom:6px; }
+.eyebrow { margin-bottom:4px; color:var(--accent); font-size:12px; font-weight:700; letter-spacing:.12em; }
+.evidence-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin-top:18px; }
+.evidence-card { padding:16px; background:#fff; border:1px solid var(--border); }
+.evidence-card h3 { font:700 17px/1.45 var(--serif); margin-bottom:5px; }
+.evidence-card p { color:var(--muted); font-size:13px; margin-bottom:10px; }
+.evidence-card a { color:var(--accent); text-decoration:underline; text-underline-offset:3px; font-size:13px; }
 .text-button {
   background:none;
   border:0;

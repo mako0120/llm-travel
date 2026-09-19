@@ -13,9 +13,17 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 from uuid import uuid4
+
+# The script runs from scripts/, while the local travel package lives at root.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from travel.subprocess_env import safe_subprocess_env
 
 
 REPOSITORY = "mako0120/llm-travel"
@@ -30,6 +38,17 @@ def _valid_signature(secret, raw, supplied):
     return hmac.compare_digest(expected, supplied)
 
 
+def _is_claude_comment(body):
+    if not isinstance(body, str):
+        return False
+    if COMMENT_MARKER in body or re.search(r"agent\s*=\s*['\"]claude['\"]", body, re.IGNORECASE):
+        return True
+    try:
+        return json.loads(body).get("agent") == "claude"
+    except (AttributeError, json.JSONDecodeError):
+        return False
+
+
 def eligible_comment(payload, allowed_logins=DEFAULT_ALLOWED_LOGINS):
     """Return a safe event summary, or None when this event must be ignored."""
     if not isinstance(payload, dict):
@@ -39,20 +58,58 @@ def eligible_comment(payload, allowed_logins=DEFAULT_ALLOWED_LOGINS):
     comment = payload.get("comment", {})
     body = comment.get("body")
     login = comment.get("user", {}).get("login")
-    if (not isinstance(body, str) or COMMENT_MARKER not in body
+    if (not _is_claude_comment(body)
             or not isinstance(login, str) or login not in allowed_logins):
         return None
     issue = payload.get("issue", {})
     if not isinstance(issue.get("number"), int) or not isinstance(comment.get("id"), int):
         return None
-    return {"comment_id": comment["id"], "issue_number": issue["number"], "comment_url": comment.get("html_url"),
-            "body": body, "received_at": datetime.now(timezone.utc).isoformat()}
+    return {"kind": "claude_comment", "comment_id": comment["id"], "issue_number": issue["number"],
+            "comment_url": comment.get("html_url"), "body": body,
+            "received_at": datetime.now(timezone.utc).isoformat()}
+
+
+def eligible_workflow_failure(payload):
+    """Queue a failed PR CI run as data for a separate Codex investigation."""
+    if not isinstance(payload, dict) or payload.get("repository", {}).get("full_name") != REPOSITORY:
+        return None
+    run = payload.get("workflow_run", {})
+    pull_requests = run.get("pull_requests", [])
+    if payload.get("action") != "completed" or run.get("conclusion") != "failure" or not pull_requests:
+        return None
+    numbers = [item.get("number") for item in pull_requests if isinstance(item.get("number"), int)]
+    if not numbers:
+        return None
+    return {"kind": "ci_failure", "issue_number": numbers[0], "run_url": run.get("html_url"),
+            "body": "A GitHub Actions workflow failed. Inspect the linked CI run and fix only reproducible failures.",
+            "received_at": datetime.now(timezone.utc).isoformat()}
+
+
+def eligible_conflict(payload):
+    """Queue an unresolved conflict only for Codex feature branches."""
+    if not isinstance(payload, dict) or payload.get("repository", {}).get("full_name") != REPOSITORY:
+        return None
+    pull_request = payload.get("pull_request", {})
+    head = pull_request.get("head", {})
+    if (payload.get("action") not in {"opened", "reopened", "synchronize"}
+            or pull_request.get("mergeable_state") != "dirty"
+            or not isinstance(head.get("ref"), str) or not head["ref"].startswith("codex/")):
+        return None
+    number = pull_request.get("number")
+    if not isinstance(number, int):
+        return None
+    return {"kind": "merge_conflict", "issue_number": number, "pr_url": pull_request.get("html_url"),
+            "body": "A Codex pull request has merge conflicts. Inspect and resolve only the reported conflict.",
+            "received_at": datetime.now(timezone.utc).isoformat()}
 
 
 def queue_event(event, inbox):
     inbox = Path(inbox)
     inbox.mkdir(parents=True, exist_ok=True)
-    target = inbox / f"{event['comment_id']}-{uuid4()}.json"
+    event_id = event.get("comment_id") or event.get("issue_number")
+    if not isinstance(event_id, int):
+        raise ValueError("event must have a numeric identifier")
+    target = inbox / f"{event_id}-{uuid4()}.json"
     target.write_text(json.dumps(event, ensure_ascii=False, indent=2), encoding="utf-8")
     return target
 
@@ -70,6 +127,7 @@ change secrets, or make external purchases. Report findings in a PR or Issue com
         return subprocess.Popen(
             ["codex", "exec", "-C", str(Path(workspace).resolve()), "--sandbox", "workspace-write",
              "--approve-for-me", "--worktree", "-"], stdin=subprocess.PIPE, stdout=log, stderr=subprocess.STDOUT,
+            env=safe_subprocess_env(),
         ), prompt.encode("utf-8")
 
 
@@ -78,12 +136,19 @@ def handle(raw, headers, secret, inbox, workspace=None, output_dir=None, autorun
     """Pure-ish handler used by the HTTP server and tests."""
     if not _valid_signature(secret, raw, headers.get("X-Hub-Signature-256")):
         return 401, {"error": "invalid signature"}
-    if headers.get("X-GitHub-Event") != "issue_comment":
-        return 202, {"state": "ignored"}
+    event_type = headers.get("X-GitHub-Event")
     try:
-        event = eligible_comment(json.loads(raw.decode("utf-8")), allowed_logins)
+        payload = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
         return 400, {"error": "invalid JSON"}
+    if event_type == "issue_comment":
+        event = eligible_comment(payload, allowed_logins)
+    elif event_type == "workflow_run":
+        event = eligible_workflow_failure(payload)
+    elif event_type == "pull_request":
+        event = eligible_conflict(payload)
+    else:
+        event = None
     if event is None:
         return 202, {"state": "ignored"}
     queued = queue_event(event, inbox)

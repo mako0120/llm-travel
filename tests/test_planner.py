@@ -20,6 +20,12 @@ class PlannerConversationTests(unittest.TestCase):
         self.assertEqual(turn["state"], "ready")
         self.assertEqual(turn["planning_brief"]["requirements"]["destination"], "京都")
 
+    def test_questions_match_the_requested_nine_step_interview(self):
+        session, turn = next_turn(PlannerSession(), "はい")
+        self.assertEqual(turn["reply"], "ありがとうございます！ まずは、あなたのお住まいの地域を教えていただけますか？この情報をもとに、移動費などの計画を立てやすくなります。")
+        session, turn = next_turn(session, "東京")
+        self.assertEqual(turn["reply"], "行き先について教えていただけますか？行きたい国や地域、都市はありますか？特定の場所があればお知らせください。")
+
     def test_plan_brief_requires_completion_and_blocks_invention(self):
         with self.assertRaises(ValueError):
             planning_brief(PlannerSession())
