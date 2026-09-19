@@ -1,5 +1,5 @@
 const WORKSPACE_KEY = 'llm-travel-workspace-v2';
-const workflow = { runId: null, packet: [], draft: null, review: null, notice: '', hydratedRunId: null };
+const workflow = { runId: null, packet: [], draft: null, review: null, notice: '', hydratedRunId: null, autoWorkerStatus: null };
 try { const restored = JSON.parse(localStorage.getItem(WORKSPACE_KEY) || '{}'); if (restored.conditions) Object.assign(state, restored.conditions); Object.assign(workflow, restored.workflow || {}); } catch (_) {}
 const persistWorkspace = () => localStorage.setItem(WORKSPACE_KEY, JSON.stringify({ conditions: state, workflow }));
 const requestJson = async (url, options) => { const response = await fetch(url, options || {}); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.message || body.error || '処理に失敗しました。'); return body; };
@@ -8,12 +8,33 @@ const downloadJson = (name, payload) => { const href = URL.createObjectURL(new B
 const baseResearchPage = pages.research, baseReviewPage = reviewPage, baseItineraryPage = itineraryPage, baseImprovementPage = improvementPage, basePublicPage = publicPage, baseRender = render;
 const PLANNER_CHAT_KEY = 'llm-travel-planner-chat-v1';
 const newPlannerSessionId = () => 'planner-' + Math.random().toString(36).slice(2);
-let plannerChat = { sessionId: newPlannerSessionId(), messages: [], ready: null };
+let plannerChat = { sessionId: newPlannerSessionId(), messages: [], ready: null, researchRunId: null, generating: false };
 try { const savedPlannerChat = JSON.parse(localStorage.getItem(PLANNER_CHAT_KEY) || '{}'); if (savedPlannerChat && typeof savedPlannerChat.sessionId === 'string' && Array.isArray(savedPlannerChat.messages)) plannerChat = savedPlannerChat; } catch (_) {}
 const persistPlannerChat = () => localStorage.setItem(PLANNER_CHAT_KEY, JSON.stringify(plannerChat));
-pages.assistant = () => `<section class="page"><div class="crumb">ホーム　›　AI旅行プランナー</div><h1>AI旅行プランナー</h1><p class="subtitle">一問ずつ条件を確認し、情報収集後に根拠付きの旅程下書きを作成します。</p><section class="card"><div class="planner-messages" aria-live="polite">${plannerChat.messages.map(item => `<article class="planner-message ${item.role}"><b>${item.role === 'assistant' ? '旅行プランナー' : 'あなた'}</b><p>${esc(item.text)}</p></article>`).join('') || '<p class="empty">「はい」と送ると、最初の質問が表示されます。</p>'}</div>${plannerChat.ready ? `<section class="save-block"><b>${plannerChat.generating ? '旅程下書きを生成中です' : '条件の確認が完了しました'}</b><p>${plannerChat.generating ? '情報収集、根拠パケット保存、Codex候補準備を進めています。Claude独立レビューは実行待ちです。' : '旅程下書きの生成を準備しています。'}</p></section>` : `<form id="planner-form" class="actions"><input id="planner-input" aria-label="回答" placeholder="「はい」と入力して開始" required><button class="primary" type="submit">送信</button></form>`}</section></section>`;
-function bindAssistant() { const form=document.querySelector('#planner-form'); if(form) form.onsubmit=async event=>{event.preventDefault();const input=document.querySelector('#planner-input'),message=input.value.trim();if(!message)return;input.disabled=true;plannerChat.messages.push({role:'user',text:message});persistPlannerChat();try{const turn=await requestJson('/api/planner',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:plannerChat.sessionId,message})});plannerChat.messages.push({role:'assistant',text:turn.reply});if(turn.state==='ready'){plannerChat.ready=turn.planning_brief.requirements;plannerChat.generating=true}persistPlannerChat();render('assistant');if(turn.state==='ready')await startPlannerResearch()}catch(error){plannerChat.messages.push({role:'assistant',text:'処理に失敗しました: '+error.message});persistPlannerChat();render('assistant')}};}
-async function startPlannerResearch(){ const a=plannerChat.ready,budget=Number(String(a.budget).replace(/[^0-9]/g,''))||0; Object.assign(state,{departure:a.home_region,destination:a.destination,nights:a.nights,themes:a.themes.split(/[、,・]/).filter(Boolean),preference:a.spot_preference,budgetMin:budget,budgetMax:budget,accommodation:a.lodging_type,transport:a.transport.split(/[、,・]/).filter(Boolean),requests:a.special_requests}); persistWorkspace(); await runResearch(); plannerChat.generating=false; persistPlannerChat(); }
+function autoWorkerStatusMarkup(status) {
+  if (!status) return '<div class="worker-empty"><span class="worker-state">待機中</span><p>自動調査ワーカーの実行結果はまだありません。Web画面からワーカーを起動することはありません。</p></div>';
+  const lists = [...(status.missing_evidence || []), ...(status.required_evidence || [])];
+  if (status.outcome === 'reviewed_not_saved') return '<div><span class="worker-state reviewed">レビュー完了・未保存</span><p><b>レビューは通過しましたが、未検証情報のため確定旅程として保存していません。</b></p><p>収集した候補: ' + esc(status.evidence_collected ?? 0) + '件。公式情報で検証された根拠がそろうまで保存・公開はできません。</p><p class="worker-note">記録日時: ' + esc(status.created_at || '未記録') + '</p></div>';
+  if (status.outcome === 'unresolved') return '<div><span class="worker-state unresolved">追加調査が必要</span><p><b>自動レビューだけでは旅程を確定できませんでした。</b></p><p>' + esc(status.reason || '追加の根拠が必要です。') + '</p>' + (lists.length ? '<div class="worker-missing"><b>不足している根拠</b><ul>' + lists.map(item => '<li>' + esc(item) + '</li>').join('') + '</ul></div>' : '') + '<p class="worker-note">上記は不足項目の名称です。未検証の候補を事実として表示しているものではありません。</p></div>';
+  return '<div><span class="worker-state skipped">今回は処理対象外</span><p>' + esc(status.reason || 'このrunは処理されませんでした。') + '</p><p class="worker-note">別ワーカーによるclaim済み等の場合があります。</p></div>';
+}
+function autoWorkerCard() {
+  const runId = plannerChat.researchRunId || workflow.runId;
+  const cls = workflow.autoWorkerStatus ? ' status-' + workflow.autoWorkerStatus.outcome.replace('reviewed_not_saved','reviewed') : '';
+  return '<section class="card auto-worker-card' + cls + '"><div class="auto-worker-head"><div><h2>自動調査の状況</h2><p>Phase 1.5ワーカーが別プロセスで処理した結果だけを表示します。</p></div><code>' + esc(runId || 'run未作成') + '</code></div><div id="auto-worker-status">' + autoWorkerStatusMarkup(workflow.autoWorkerStatus) + '</div><div class="worker-actions"><button type="button" class="secondary" data-refresh-worker ' + (runId ? '' : 'disabled') + '>↻ 状況を再読み込み</button>' + (runId ? '<button type="button" class="secondary" data-go="research">根拠候補を見る →</button>' : '') + '</div><p class="worker-note">この画面は読み取り専用です。Webサーバーは自動ワーカーを起動せず、GitHub書き込み資格情報も持ちません。</p></section>';
+}
+async function refreshAutoWorkerStatus() {
+  const runId = plannerChat.researchRunId || workflow.runId;
+  if (!runId) return;
+  try {
+    const payload = await requestJson('/api/workspace/runs/' + encodeURIComponent(runId) + '/auto-worker-status');
+    workflow.autoWorkerStatus = payload.auto_worker || null; persistWorkspace();
+    const target = document.querySelector('#auto-worker-status'); if (target) target.innerHTML = autoWorkerStatusMarkup(workflow.autoWorkerStatus);
+  } catch (error) { const target = document.querySelector('#auto-worker-status'); if (target) target.innerHTML = '<div class="worker-missing"><b>状況を取得できません</b><p>' + esc(error.message) + '</p></div>'; }
+}
+pages.assistant = () => `<section class="page"><div class="crumb">ホーム　›　AI旅行プランナー</div><h1>AI旅行プランナー</h1><p class="subtitle">一問ずつ条件を確認し、情報収集後に根拠付きの旅程下書きを作成します。</p><section class="card"><div class="planner-messages" aria-live="polite">${plannerChat.messages.map(item => `<article class="planner-message ${item.role}"><b>${item.role === 'assistant' ? '旅行プランナー' : 'あなた'}</b><p>${esc(item.text)}</p></article>`).join('') || '<p class="empty">「はい」と送ると、最初の質問が表示されます。</p>'}</div>${plannerChat.ready ? `<section class="save-block"><b>${plannerChat.generating ? '旅程下書きを生成中です' : '条件の確認が完了しました'}</b><p>${plannerChat.generating ? '情報収集、根拠パケット保存、Codex候補準備を進めています。Claude独立レビューは実行待ちです。' : '旅程下書きの生成を準備しています。'}</p></section>` : `<form id="planner-form" class="actions"><input id="planner-input" aria-label="回答" placeholder="「はい」と入力して開始" required><button class="primary" type="submit">送信</button></form>`}</section>${plannerChat.ready ? autoWorkerCard() : ''}</section>`;
+function bindAssistant() { const form=document.querySelector('#planner-form'); if(form) form.onsubmit=async event=>{event.preventDefault();const input=document.querySelector('#planner-input'),message=input.value.trim();if(!message)return;input.disabled=true;plannerChat.messages.push({role:'user',text:message});persistPlannerChat();try{const turn=await requestJson('/api/planner',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:plannerChat.sessionId,message})});plannerChat.messages.push({role:'assistant',text:turn.reply});if(turn.state==='ready'){plannerChat.ready=turn.planning_brief.requirements;plannerChat.generating=true;plannerChat.researchRunId=turn.research?.run_id||null;workflow.runId=plannerChat.researchRunId;workflow.autoWorkerStatus=null;workflow.packet=[];workflow.draft=null;workflow.review=null;workflow.hydratedRunId=null}persistPlannerChat();persistWorkspace();render('assistant');if(turn.state==='ready')await startPlannerResearch()}catch(error){plannerChat.messages.push({role:'assistant',text:'処理に失敗しました: '+error.message});persistPlannerChat();render('assistant')}};}
+async function startPlannerResearch(){ const a=plannerChat.ready,budget=Number(String(a.budget).replace(/[^0-9]/g,''))||0; Object.assign(state,{departure:a.home_region,destination:a.destination,nights:a.nights,themes:a.themes.split(/[、,・]/).filter(Boolean),preference:a.spot_preference,budgetMin:budget,budgetMax:budget,accommodation:a.lodging_type,transport:a.transport.split(/[、,・]/).filter(Boolean),requests:a.special_requests}); workflow.notice='自動調査runを作成しました。別プロセスのワーカー結果を待っています。'; persistWorkspace(); plannerChat.generating=false; persistPlannerChat(); await refreshAutoWorkerStatus(); render('assistant'); }
 
 runResearch = async function () {
   const button = document.querySelector('#research') || document.querySelector('#rerun');
@@ -93,15 +114,16 @@ bindResearch = function () {
     } catch (error) { alert(error.message); }
   };
 };
-pages.research = () => baseResearchPage() + '<section class="page workflow-tools"><section class="card"><h2>Codex / Claude のネット調査を取り込む</h2><p>Google と TikTok の調査は、明示実行した独立エージェントの URL 付き結果だけを読み込みます。取得結果は必ず未検証です。</p><div class="actions"><button class="secondary" id="download-agent-research">調査依頼JSONを保存</button><label class="secondary file-button">調査結果JSONを読み込む<input id="agent-research-file" type="file" accept="application/json"></label></div></section><section class="card"><h2>検証済み根拠を手動で記録</h2><p>公式サイトを人間が確認した後にだけ入力します。候補情報を自動で verified に変更する機能ではありません。</p><form id="manual-evidence" class="manual-evidence"><label>根拠タイトル<input name="title" required maxlength="160" placeholder="例: 事業者公式時刻表（確認済み）"></label><label>公式URL<input name="url" type="url" required placeholder="https://"></label><label>失効日時（JST）<input name="expires_at" type="datetime-local" required></label><label>確認内容（JSON）<textarea name="facts" required placeholder="{&quot;line_name&quot;:&quot;...&quot;,&quot;checked_by&quot;:&quot;operator&quot;}"></textarea></label><button class="secondary" type="submit">検証済み根拠を記録</button><button class="primary" type="button" id="complete-research">研究ランを完了する</button></form></section></section>';
+pages.research = () => baseResearchPage() + '<section class="page workflow-tools">' + autoWorkerCard() + '<section class="card"><h2>Codex / Claude のネット調査を取り込む</h2><p>Google と TikTok の調査は、明示実行した独立エージェントの URL 付き結果だけを読み込みます。取得結果は必ず未検証です。</p><div class="actions"><button class="secondary" id="download-agent-research">調査依頼JSONを保存</button><label class="secondary file-button">調査結果JSONを読み込む<input id="agent-research-file" type="file" accept="application/json"></label></div></section><section class="card"><h2>検証済み根拠を手動で記録</h2><p>公式サイトを人間が確認した後にだけ入力します。候補情報を自動で verified に変更する機能ではありません。</p><form id="manual-evidence" class="manual-evidence"><label>根拠タイトル<input name="title" required maxlength="160" placeholder="例: 事業者公式時刻表（確認済み）"></label><label>公式URL<input name="url" type="url" required placeholder="https://"></label><label>失効日時（JST）<input name="expires_at" type="datetime-local" required></label><label>確認内容（JSON）<textarea name="facts" required placeholder="{&quot;line_name&quot;:&quot;...&quot;,&quot;checked_by&quot;:&quot;operator&quot;}"></textarea></label><button class="secondary" type="submit">検証済み根拠を記録</button><button class="primary" type="button" id="complete-research">研究ランを完了する</button></form></section></section>';
 async function hydrateResearchPacket() {
-  if (!workflow.runId || !workflow.packet.length || workflow.hydratedRunId === workflow.runId) return;
+  if (!workflow.runId || workflow.hydratedRunId === workflow.runId) return;
   try {
     const saved = await requestJson('/api/research/' + encodeURIComponent(workflow.runId));
     evidence = saved.evidence || [];
     selectedEvidence = new Set(evidence.map((_, index) => index));
     packetCreated = evidence.length > 0;
     workflow.packet = saved.evidence || [];
+    if (workflow.packet.length && !workflow.draft) { try { const drafted = await requestJson('/api/workspace/runs/' + encodeURIComponent(workflow.runId) + '/draft', { method: 'POST' }); workflow.draft = drafted.draft; } catch (_) {} }
     workflow.hydratedRunId = workflow.runId;
     workflow.notice = evidence.length + '件の保存済み根拠パケットを復元しました。';
     persistWorkspace();
@@ -128,11 +150,12 @@ render = function (name) {
   const current = knownPages.has(name) ? name : 'home';
   baseRender(current);
   if (current === 'home') persistWorkspace();
-  if (current === 'research') void hydrateResearchPacket();
-  if (current === 'assistant') { bindAssistant(); requestAnimationFrame(() => { const latest = document.querySelector('.planner-message:last-of-type, #planner-form, #planner-start-research'); if (latest) latest.scrollIntoView({ block: 'center', behavior: 'smooth' }); }); }
+  if (current === 'research') { void hydrateResearchPacket(); void refreshAutoWorkerStatus(); }
+  if (current === 'assistant') { bindAssistant(); void refreshAutoWorkerStatus(); requestAnimationFrame(() => { const latest = document.querySelector('.planner-message:last-of-type, #planner-form, #planner-start-research'); if (latest) latest.scrollIntoView({ block: 'center', behavior: 'smooth' }); }); }
   if (current === 'review') bindReview();
   if (current === 'public') bindPublic();
   document.querySelectorAll('[data-go]').forEach(button => button.onclick = () => navigate(button.dataset.go));
+  document.querySelectorAll('[data-refresh-worker]').forEach(button => button.onclick = async () => { button.disabled = true; workflow.hydratedRunId = null; await refreshAutoWorkerStatus(); if (pageName() === 'research') await hydrateResearchPacket(); button.disabled = false; });
 };
 function navigate(name) {
   if (!knownPages.has(name)) return;
