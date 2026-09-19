@@ -8,7 +8,7 @@ from wsgiref.simple_server import make_server
 from travel.storage import Repository
 from travel.planner import PlannerSession, next_turn, research_request
 from travel.providers import public_provider_catalog
-from travel.free_sources import NominatimAdapter, OpenMeteoAdapter, WikimediaAdapter, public_result_evidence, public_source_catalog
+from travel.free_sources import collect_public_evidence, public_source_catalog
 from travel.agent_research import agent_web_research_request, validate_agent_web_evidence
 from travel.draft_itinerary import create_research_draft
 
@@ -145,20 +145,7 @@ def application(environ, start_response):
             }, "409 Conflict")
         # These are bounded, user-triggered requests.  Results stay unverified
         # until an operator reviews them against an authoritative source.
-        geocode = NominatimAdapter().search_destination(destination)
-        results = [geocode, WikimediaAdapter().search_destination(destination)]
-        if geocode.state == "available" and geocode.value and isinstance(geocode.value[0], dict):
-            place = geocode.value[0]
-            try:
-                results.append(OpenMeteoAdapter().forecast(float(place["lat"]), float(place["lon"])))
-            except (KeyError, TypeError, ValueError):
-                pass
-        evidence = []
-        for result in results:
-            try:
-                evidence.extend(public_result_evidence(result))
-            except ValueError:
-                continue
+        results, evidence = collect_public_evidence(destination)
         return _json_response(start_response, {
             "destination": destination,
             "results": [{"provider": result.provider, "state": result.state,

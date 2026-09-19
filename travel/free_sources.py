@@ -199,3 +199,29 @@ def public_result_evidence(result, retrieved_at=None, freshness_hours=24):
                          "title": page["title"], "facts": {key: page[key] for key in ("description", "excerpt") if isinstance(page.get(key), str)},
                          "retrieved_at": retrieved, "expires_at": expires, "verification_status": "unverified"})
     return evidence
+
+
+def collect_public_evidence(destination, nominatim=None, wikimedia=None, open_meteo=None):
+    """Run the same bounded, no-key lookups /api/free-research performs.
+
+    Shared by the web handler and the opt-in personal automation worker so
+    both follow one code path. Every returned item stays unverified.
+    """
+    nominatim = nominatim or NominatimAdapter()
+    wikimedia = wikimedia or WikimediaAdapter()
+    open_meteo = open_meteo or OpenMeteoAdapter()
+    geocode = nominatim.search_destination(destination)
+    results = [geocode, wikimedia.search_destination(destination)]
+    if geocode.state == "available" and geocode.value and isinstance(geocode.value[0], dict):
+        place = geocode.value[0]
+        try:
+            results.append(open_meteo.forecast(float(place["lat"]), float(place["lon"])))
+        except (KeyError, TypeError, ValueError):
+            pass
+    evidence = []
+    for result in results:
+        try:
+            evidence.extend(public_result_evidence(result))
+        except ValueError:
+            continue
+    return results, evidence

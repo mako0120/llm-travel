@@ -397,6 +397,19 @@ class Repository:
                                      (record["id"], profile_id, _json(requirements), _json(source_targets), "requested", record["created_at"], None))
         return record
 
+    def list_research_runs(self, state=None):
+        """List research run ids and requirements, optionally filtered by state."""
+        if state is not None and state not in ("requested", "researching", "ready", "failed", "unconfigured"):
+            raise ValueError("state is invalid")
+        with self._lock:
+            if state is None:
+                rows = self._connection.execute("SELECT * FROM research_runs ORDER BY created_at, id").fetchall()
+            else:
+                rows = self._connection.execute(
+                    "SELECT * FROM research_runs WHERE state = ? ORDER BY created_at, id", (state,)
+                ).fetchall()
+        return [dict(dict(row), requirements=json.loads(row["requirements"]), source_targets=json.loads(row["source_targets"])) for row in rows]
+
     def record_evidence(self, run_id, evidence):
         """Persist supplied research evidence with provenance; do not assert its truth."""
         _identifier(run_id)
