@@ -169,6 +169,25 @@ def application(environ, start_response):
             return _bad_request(start_response, str(exc))
         finally:
             repo.close()
+    if path.startswith("/api/workspace/runs/") and path.endswith("/auto-worker-status") and method == "GET":
+        run_id = path.removeprefix("/api/workspace/runs/").removesuffix("/auto-worker-status").strip("/")
+        if not run_id:
+            return _bad_request(start_response, "research run id is required")
+        repo = _repository()
+        try:
+            run = repo.get_research_run(run_id)
+            if run is None:
+                return _json_response(start_response, {"error": "research run not found"}, "404 Not Found")
+            return _json_response(start_response, {
+                "run_id": run_id,
+                "run_state": run["state"],
+                "auto_worker": repo.latest_auto_worker_result(run_id),
+                "notice": "This endpoint only reads a previously recorded worker result. It never starts the worker.",
+            })
+        except ValueError as exc:
+            return _bad_request(start_response, str(exc))
+        finally:
+            repo.close()
     if path.startswith("/api/workspace/runs/") and path.endswith("/packet") and method == "POST":
         run_id = path.removeprefix("/api/workspace/runs/").removesuffix("/packet").strip("/")
         data = _read_json_body(environ)
