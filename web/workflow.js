@@ -35,6 +35,22 @@ bindResearch = function () {
     } catch (error) { workflow.notice = error.message; persistWorkspace(); render('research'); }
   };
   const next = document.querySelector('#next-review'); if (next) next.onclick = () => render('review');
+  const agentBrief = document.querySelector('#download-agent-research'); if (agentBrief) agentBrief.onclick = async () => {
+    if (!workflow.runId) { alert('先に情報収集を実行してください。'); return; }
+    try {
+      const payload = await requestJson('/api/workspace/runs/' + encodeURIComponent(workflow.runId) + '/agent-research', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'request' }) });
+      downloadJson('agent-web-research-' + workflow.runId + '.json', payload.request);
+      workflow.notice = 'Google / TikTok 用の調査依頼JSONを保存しました。結果は未検証の根拠としてだけ取り込めます。'; persistWorkspace(); render('research');
+    } catch (error) { alert(error.message); }
+  };
+  const agentFile = document.querySelector('#agent-research-file'); if (agentFile) agentFile.onchange = async event => {
+    const selected = event.target.files && event.target.files[0]; if (!selected || !workflow.runId) return;
+    try {
+      const imported = JSON.parse(await selected.text()); const candidates = Array.isArray(imported) ? imported : imported.evidence;
+      const saved = await requestJson('/api/workspace/runs/' + encodeURIComponent(workflow.runId) + '/agent-research', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ evidence: candidates }) });
+      workflow.packet.push(...saved.evidence); workflow.notice = saved.evidence.length + '件のエージェント調査結果を未検証根拠として保存しました。'; persistWorkspace(); render('research');
+    } catch (error) { alert(error.message); }
+  };
   const manual = document.querySelector('#manual-evidence');
   if (manual) manual.onsubmit = async event => {
     event.preventDefault();
@@ -65,7 +81,7 @@ bindResearch = function () {
     } catch (error) { alert(error.message); }
   };
 };
-pages.research = () => baseResearchPage() + '<section class="page workflow-tools"><section class="card"><h2>検証済み根拠を手動で記録</h2><p>公式サイトを人間が確認した後にだけ入力します。候補情報を自動で verified に変更する機能ではありません。</p><form id="manual-evidence" class="manual-evidence"><label>根拠タイトル<input name="title" required maxlength="160" placeholder="例: 事業者公式時刻表（確認済み）"></label><label>公式URL<input name="url" type="url" required placeholder="https://"></label><label>失効日時（JST）<input name="expires_at" type="datetime-local" required></label><label>確認内容（JSON）<textarea name="facts" required placeholder="{&quot;line_name&quot;:&quot;...&quot;,&quot;checked_by&quot;:&quot;operator&quot;}"></textarea></label><button class="secondary" type="submit">検証済み根拠を記録</button><button class="primary" type="button" id="complete-research">研究ランを完了する</button></form></section></section>';
+pages.research = () => baseResearchPage() + '<section class="page workflow-tools"><section class="card"><h2>Codex / Claude のネット調査を取り込む</h2><p>Google と TikTok の調査は、明示実行した独立エージェントの URL 付き結果だけを読み込みます。取得結果は必ず未検証です。</p><div class="actions"><button class="secondary" id="download-agent-research">調査依頼JSONを保存</button><label class="secondary file-button">調査結果JSONを読み込む<input id="agent-research-file" type="file" accept="application/json"></label></div></section><section class="card"><h2>検証済み根拠を手動で記録</h2><p>公式サイトを人間が確認した後にだけ入力します。候補情報を自動で verified に変更する機能ではありません。</p><form id="manual-evidence" class="manual-evidence"><label>根拠タイトル<input name="title" required maxlength="160" placeholder="例: 事業者公式時刻表（確認済み）"></label><label>公式URL<input name="url" type="url" required placeholder="https://"></label><label>失効日時（JST）<input name="expires_at" type="datetime-local" required></label><label>確認内容（JSON）<textarea name="facts" required placeholder="{&quot;line_name&quot;:&quot;...&quot;,&quot;checked_by&quot;:&quot;operator&quot;}"></textarea></label><button class="secondary" type="submit">検証済み根拠を記録</button><button class="primary" type="button" id="complete-research">研究ランを完了する</button></form></section></section>';
 async function hydrateResearchPacket() {
   if (!workflow.runId || !workflow.packet.length || workflow.hydratedRunId === workflow.runId) return;
   try {

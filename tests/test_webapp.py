@@ -103,6 +103,20 @@ class WebAppTests(unittest.TestCase):
             seen, body = self.request(f"/api/research/{run_id}")
             self.assertEqual(seen[0], "200 OK")
             self.assertEqual(json.loads(body)["evidence"][0]["title"], "京都")
+
+    def test_agent_web_research_request_and_unverified_import(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict("os.environ", {"LLM_TRAVEL_DB": str(Path(tmp) / "travel.sqlite3")}):
+            _, body = self.post("/api/workspace/runs", {"requirements": {"destination": "京都"}, "source_targets": []})
+            run_id = json.loads(body)["run"]["id"]
+            seen, body = self.post(f"/api/workspace/runs/{run_id}/agent-research", {"action": "request"})
+            self.assertEqual(seen[0], "200 OK")
+            self.assertEqual(json.loads(body)["request"]["sources"][1]["source_type"], "TikTok discovery")
+            evidence = {"agent": "claude", "source_type": "TikTok discovery", "url": "https://www.tiktok.com/@travel/video/1",
+                        "title": "動画候補", "facts": {"query": "京都"}, "retrieved_at": "2030-01-01T00:00:00Z",
+                        "expires_at": "2030-01-01T01:00:00Z", "verification_status": "unverified"}
+            seen, body = self.post(f"/api/workspace/runs/{run_id}/agent-research", {"evidence": [evidence]})
+            self.assertEqual(seen[0], "201 Created")
+            self.assertEqual(json.loads(body)["evidence"][0]["verification_status"], "unverified")
     def test_complete_conversation_creates_requested_research_run(self):
         session='ready-test';self.post('/api/planner',{'session_id':session,'message':'はい'})
         for answer in ['大阪','京都','1','グルメ','両方','50000','ホテル','公共交通','なし']:

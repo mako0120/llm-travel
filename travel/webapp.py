@@ -9,6 +9,7 @@ from travel.storage import Repository
 from travel.planner import PlannerSession, next_turn, research_request
 from travel.providers import public_provider_catalog
 from travel.free_sources import NominatimAdapter, OpenMeteoAdapter, WikimediaAdapter, public_result_evidence, public_source_catalog
+from travel.agent_research import agent_web_research_request, validate_agent_web_evidence
 
 
 ROOT = Path(__file__).resolve().parents[1] / "web"
@@ -189,6 +190,27 @@ def application(environ, start_response):
         repo = _repository()
         try:
             saved = [repo.record_evidence(run_id, item) for item in candidates]
+            return _json_response(start_response, {"run_id": run_id, "evidence": saved, "state": "researching"}, "201 Created")
+        except ValueError as exc:
+            return _bad_request(start_response, str(exc))
+        finally:
+            repo.close()
+    if path.startswith("/api/workspace/runs/") and path.endswith("/agent-research") and method == "POST":
+        run_id = path.removeprefix("/api/workspace/runs/").removesuffix("/agent-research").strip("/")
+        data = _read_json_body(environ)
+        if not run_id or not isinstance(data, dict):
+            return _bad_request(start_response, "run id and JSON body are required")
+        repo = _repository()
+        try:
+            if data.get("action") == "request":
+                run = repo.get_research_run(run_id)
+                if run is None:
+                    return _json_response(start_response, {"error": "research run not found"}, "404 Not Found")
+                return _json_response(start_response, {"request": agent_web_research_request(run["requirements"]), "state": run["state"]})
+            candidates = data.get("evidence")
+            if not isinstance(candidates, list) or not candidates:
+                return _bad_request(start_response, "agent research evidence is required")
+            saved = [repo.record_evidence(run_id, validate_agent_web_evidence(item)) for item in candidates]
             return _json_response(start_response, {"run_id": run_id, "evidence": saved, "state": "researching"}, "201 Created")
         except ValueError as exc:
             return _bad_request(start_response, str(exc))
