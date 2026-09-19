@@ -154,6 +154,16 @@ class Repository:
                     created_at TEXT NOT NULL,
                     completed_at TEXT
                 );
+                CREATE TABLE IF NOT EXISTS auto_worker_results (
+                    id TEXT PRIMARY KEY,
+                    run_id TEXT NOT NULL,
+                    outcome TEXT NOT NULL CHECK(outcome IN ('skipped', 'unresolved', 'reviewed_not_saved')),
+                    document TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(run_id) REFERENCES research_runs(id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_auto_worker_results_run_created
+                    ON auto_worker_results(run_id, created_at DESC, id DESC);
                 CREATE TABLE IF NOT EXISTS research_evidence (
                     id TEXT PRIMARY KEY,
                     run_id TEXT NOT NULL,
@@ -423,6 +433,58 @@ class Repository:
                     "SELECT * FROM research_runs WHERE state = ? ORDER BY created_at, id", (state,)
                 ).fetchall()
         return [dict(dict(row), requirements=json.loads(row["requirements"]), source_targets=json.loads(row["source_targets"])) for row in rows]
+
+    def record_auto_worker_result(self, run_id, summary):
+        """Persist a bounded, display-safe summary of one worker attempt."""
+        _identifier(run_id)
+        if not isinstance(summary, dict):
+            raise ValueError("auto worker result must be an object")
+        outcome = summary.get("outcome")
+        if outcome not in ("skipped", "unresolved", "reviewed_not_saved"):
+            raise ValueError("auto worker outcome is invalid")
+        reason = summary.get("reason")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("auto worker result requires a reason")
+        safe = {"outcome": outcome, "reason": reason.strip()}
+        for key in ("missing_evidence", "required_evidence"):
+            value = summary.get(key, [])
+            if not isinstance(value, list) or any(not isinstance(item, str) or not item.strip() for item in value):
+                raise ValueError(f"{key} must be a list of nonempty strings")
+            safe[key] = [item.strip() for item in value]
+        evidence_collected = summary.get("evidence_collected")
+        if evidence_collected is not None:
+            if type(evidence_collected) is not int or evidence_collected < 0:
+                raise ValueError("evidence_collected must be a nonnegative integer")
+            safe["evidence_collected"] = evidence_collected
+        for key in ("codex_executed_at", "claude_executed_at"):
+            value = summary.get(key)
+            if value is not None:
+                safe[key] = _timestamp(value).isoformat()
+        record = {"id": str(uuid4()), "run_id": run_id, **safe, "created_at": _now()}
+        with self._lock, self._connection:
+            exists = self._connection.execute("SELECT 1 FROM research_runs WHERE id = ?", (run_id,)).fetchone()
+            if exists is None:
+                raise ValueError("research run does not exist")
+            self._connection.execute(
+                "INSERT INTO auto_worker_results(id, run_id, outcome, document, created_at) VALUES (?, ?, ?, ?, ?)",
+                (record["id"], run_id, outcome, _json(safe), record["created_at"]),
+            )
+        return record
+
+    def latest_auto_worker_result(self, run_id):
+        """Return the newest display-safe worker result for a research run."""
+        _identifier(run_id)
+        with self._lock:
+            exists = self._connection.execute("SELECT 1 FROM research_runs WHERE id = ?", (run_id,)).fetchone()
+            if exists is None:
+                raise ValueError("research run does not exist")
+            row = self._connection.execute(
+                "SELECT * FROM auto_worker_results WHERE run_id = ? ORDER BY created_at DESC, id DESC LIMIT 1",
+                (run_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return {"id": row["id"], "run_id": row["run_id"], **json.loads(row["document"]), "created_at": row["created_at"]}
 
     def record_evidence(self, run_id, evidence):
         """Persist supplied research evidence with provenance; do not assert its truth."""
