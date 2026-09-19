@@ -21,10 +21,10 @@ class GitHubWebhookBridgeTests(unittest.TestCase):
         signature = "sha256=" + hmac.new(self.secret.encode(), raw, hashlib.sha256).hexdigest()
         return {"X-Hub-Signature-256": signature, "X-GitHub-Event": event}
 
-    def payload(self, body="## Claude → Codex\nレビューです"):
+    def payload(self, body="## Claude → Codex\nレビューです", login="mako0120"):
         return {"action": "created", "repository": {"full_name": "mako0120/llm-travel"},
                 "issue": {"number": 16}, "comment": {"id": 123, "html_url": "https://example.test/c/123", "body": body,
-                                                           "user": {"login": "mako0120"}}}
+                                                           "user": {"login": login}}}
 
     def workflow_failure_payload(self):
         return {"action": "completed", "repository": {"full_name": "mako0120/llm-travel"},
@@ -44,6 +44,17 @@ class GitHubWebhookBridgeTests(unittest.TestCase):
             self.assertEqual(result["state"], "queued")
             queued = json.loads(Path(result["event"]).read_text(encoding="utf-8"))
             self.assertEqual(queued["issue_number"], 16)
+
+    def test_configured_claude_login_is_queued_without_body_marker(self):
+        payload = self.payload("レビュー結果を返します", login="longshixiaolin8-max")
+        raw = json.dumps(payload).encode()
+        with tempfile.TemporaryDirectory() as tmp:
+            status, result = bridge.handle(raw, self.signed_headers(raw), self.secret, tmp)
+            self.assertEqual((status, result["state"]), (202, "queued"))
+            queued = json.loads(Path(result["event"]).read_text(encoding="utf-8"))
+            self.assertEqual(queued["source_login"], "longshixiaolin8-max")
+            self.assertEqual(queued["detection_method"], "trusted_claude_login")
+            self.assertEqual(queued["event_id"], 123)
 
     def test_invalid_signature_never_queues(self):
         raw = json.dumps(self.payload()).encode()
@@ -82,8 +93,18 @@ class GitHubWebhookBridgeTests(unittest.TestCase):
                 queued = json.loads(Path(result["event"]).read_text(encoding="utf-8"))
                 self.assertIn(queued["kind"], {"ci_failure", "merge_conflict"})
 
+    def test_non_comment_events_do_not_require_comment_id_for_autorun(self):
+        events = (
+            {"event_id": 9001, "kind": "ci_failure", "issue_number": 53, "body": "CI failed"},
+            {"event_id": 53, "kind": "merge_conflict", "issue_number": 53, "body": "Merge conflict"},
+        )
+        with tempfile.TemporaryDirectory() as tmp, patch.object(bridge.subprocess, "Popen", return_value=object()) as popen:
+            for event in events:
+                bridge.run_codex(event, tmp, tmp)
+        self.assertEqual(popen.call_count, 2)
+
     def test_autorun_does_not_inherit_github_or_deploy_credentials(self):
-        event = {"comment_id": 123, "body": "Claude → Codex"}
+        event = {"event_id": 123, "comment_id": 123, "kind": "claude_comment", "body": "Claude → Codex"}
         process = type("Process", (), {"stdin": None})()
         with tempfile.TemporaryDirectory() as tmp, patch.dict("os.environ", {"PATH": "safe-path", "GITHUB_TOKEN": "secret", "DEPLOY_TOKEN": "secret"}, clear=True), patch.object(bridge.subprocess, "Popen", return_value=process) as popen:
             bridge.run_codex(event, tmp, tmp)
