@@ -19,12 +19,12 @@ function autoWorkerStatusMarkup(status) {
   return '<div><span class="worker-state skipped">今回は処理対象外</span><p>' + esc(status.reason || 'このrunは処理されませんでした。') + '</p><p class="worker-note">別ワーカーによるclaim済み等の場合があります。</p></div>';
 }
 function autoWorkerCard() {
-  const runId = plannerChat.researchRunId || workflow.runId;
+  const runId = workflow.runId || plannerChat.researchRunId;
   const cls = workflow.autoWorkerStatus ? ' status-' + workflow.autoWorkerStatus.outcome.replace('reviewed_not_saved','reviewed') : '';
   return '<section class="card auto-worker-card' + cls + '"><div class="auto-worker-head"><div><h2>自動調査の状況</h2><p>Phase 1.5ワーカーが別プロセスで処理した結果だけを表示します。</p></div><code>' + esc(runId || 'run未作成') + '</code></div><div id="auto-worker-status">' + autoWorkerStatusMarkup(workflow.autoWorkerStatus) + '</div><div class="worker-actions"><button type="button" class="secondary" data-refresh-worker ' + (runId ? '' : 'disabled') + '>↻ 状況を再読み込み</button>' + (runId ? '<button type="button" class="secondary" data-go="research">根拠候補を見る →</button>' : '') + '</div><p class="worker-note">この画面は読み取り専用です。Webサーバーは自動ワーカーを起動せず、GitHub書き込み資格情報も持ちません。</p></section>';
 }
 async function refreshAutoWorkerStatus() {
-  const runId = plannerChat.researchRunId || workflow.runId;
+  const runId = workflow.runId || plannerChat.researchRunId;
   if (!runId) return;
   try {
     const payload = await requestJson('/api/workspace/runs/' + encodeURIComponent(runId) + '/auto-worker-status');
@@ -44,7 +44,7 @@ runResearch = async function () {
     const research = await requestJson('/api/free-research', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ destination: state.destination }) });
     evidence = research.evidence || [];
     const created = await requestJson('/api/workspace/runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requirements: requirements(), source_targets: ['nominatim', 'wikimedia', 'open_meteo'] }) });
-    workflow.runId = created.run.id; workflow.packet = []; workflow.draft = null; workflow.review = null; workflow.hydratedRunId = null;
+    workflow.runId = created.run.id; workflow.packet = []; workflow.draft = null; workflow.review = null; workflow.hydratedRunId = null; workflow.autoWorkerStatus = null;
     if (!evidence.length) throw new Error('旅程下書きを作る候補が取得できませんでした。再検索してください。');
     const saved = await requestJson('/api/workspace/runs/' + encodeURIComponent(workflow.runId) + '/packet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ evidence }) });
     workflow.packet = saved.evidence; selectedEvidence = new Set(evidence.map((_, index) => index)); packetCreated = true;
