@@ -397,6 +397,20 @@ class Repository:
                                      (record["id"], profile_id, _json(requirements), _json(source_targets), "requested", record["created_at"], None))
         return record
 
+    def claim_research_run(self, run_id):
+        """Atomically move one run from 'requested' to 'researching'.
+
+        Returns True only if this call performed the transition, so two
+        overlapping workers (or a worker racing a web request) cannot both
+        claim and process the same run.
+        """
+        _identifier(run_id)
+        with self._lock, self._connection:
+            self._connection.execute("BEGIN IMMEDIATE")
+            cursor = self._connection.execute(
+                "UPDATE research_runs SET state = 'researching' WHERE id = ? AND state = 'requested'", (run_id,))
+            return cursor.rowcount == 1
+
     def list_research_runs(self, state=None):
         """List research run ids and requirements, optionally filtered by state."""
         if state is not None and state not in ("requested", "researching", "ready", "failed", "unconfigured"):

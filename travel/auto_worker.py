@@ -3,10 +3,16 @@
 This module must never be imported by travel.webapp. The public web server
 stays exactly as it is today: it only writes research requests to the local
 database. Only a separate process the operator starts by hand (see
-scripts/run_auto_research_worker.py) imports this module, holds a GitHub
-token, and is allowed to post to GitHub. Keeping these two processes and
-their credentials apart is the entire point of this design; do not merge
-this module's responsibilities back into webapp.py.
+scripts/run_auto_research_worker.py) imports this module.
+
+This worker does not hold or use a GitHub token at all. AGENTS.md prohibits
+any runtime in this project from holding GitHub write or deploy credentials,
+not only the public web server (see the receiver process in
+scripts/github_webhook_bridge.py, which follows the same rule). Its outcome
+is written to a local audit log only; if the operator wants a record on
+GitHub, they post it themselves with their own already-authenticated tools
+(the GitHub web UI or their own `gh` CLI session), which also gives them a
+chance to redact anything sensitive before it becomes public.
 
 The worker never invents opening hours, prices, or transit facts. The free
 public sources it uses (Nominatim/Wikimedia/Open-Meteo) only ever produce
@@ -15,20 +21,18 @@ save an itinerary that cites anything other than fresh, verified evidence.
 So this worker cannot, by construction, turn a web search into a saved,
 confirmed itinerary -- it can only collect candidates and run the same
 Codex-proposes/Claude-reviews audit that a human would otherwise run by
-hand, then post that audit outcome to GitHub as a record.
+hand, then record that audit outcome locally.
 """
 
 import json
 import os
 import subprocess
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 
 from travel.agent_handoff import build_research_brief, run_claude_review, run_codex_proposal
 from travel.free_sources import collect_public_evidence
 
 
-GITHUB_TOKEN_ENV_VAR = "LLM_TRAVEL_AUTO_WORKER_GITHUB_TOKEN"
+_SUBPROCESS_FAILURE_TYPES = (RuntimeError, ValueError, subprocess.SubprocessError, OSError)
 
 
 def auto_research_enabled(environment=None):
@@ -39,27 +43,14 @@ def auto_research_enabled(environment=None):
     return source.get("LLM_TRAVEL_AUTO_RESEARCH", "").strip() == "1"
 
 
-def _default_poster(url, token, body):
-    request = Request(url, data=json.dumps({"body": body}).encode("utf-8"), method="POST",
-                       headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
-                                "Content-Type": "application/json", "User-Agent": "llm-travel-auto-worker/0.1"})
-    with urlopen(request, timeout=15) as response:  # nosec B310: fixed GitHub API host only
-        return response.status
+def append_audit_log_entry(log_path, summary):
+    """Append one JSON-line audit record to a local, operator-owned log file.
 
-
-def post_audit_comment(repo_slug, issue_number, token, body, poster=_default_poster):
-    """Post one audit record to GitHub. Only the worker process ever calls this."""
-    if not isinstance(repo_slug, str) or "/" not in repo_slug:
-        raise ValueError("repo_slug must be 'owner/repo'")
-    if not isinstance(issue_number, int) or issue_number <= 0:
-        raise ValueError("issue_number must be a positive integer")
-    if not isinstance(token, str) or not token.strip():
-        raise ValueError("a GitHub token is required to post an audit record")
-    url = f"https://api.github.com/repos/{repo_slug}/issues/{issue_number}/comments"
-    try:
-        return poster(url, token, body)
-    except (HTTPError, URLError, TimeoutError, OSError) as exc:
-        raise RuntimeError(f"could not post the audit record to GitHub: {exc}") from exc
+    This never leaves the local machine on its own; nothing in this project
+    posts it to GitHub automatically.
+    """
+    with open(log_path, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(summary, ensure_ascii=False) + "\n")
 
 
 def process_pending_run(repo, run, workspace, codex_runner=subprocess.run, claude_runner=subprocess.run):
@@ -68,7 +59,13 @@ def process_pending_run(repo, run, workspace, codex_runner=subprocess.run, claud
     Returns a summary dict describing the outcome. Never marks a run "ready"
     itself; record_itinerary_proposal (unchanged) is the only path that can
     do that, and it still requires fresh verified evidence and both reviews.
+
+    Claims the run atomically first, so two overlapping worker instances
+    cannot both process (and pay to process) the same run.
     """
+    if not repo.claim_research_run(run["id"]):
+        return {"run_id": run["id"], "outcome": "skipped", "reason": "already claimed by another worker instance"}
+
     destination = run["requirements"].get("destination")
     if not isinstance(destination, str) or not destination.strip():
         return {"run_id": run["id"], "outcome": "skipped", "reason": "requirements.destination is missing"}
@@ -81,6 +78,8 @@ def process_pending_run(repo, run, workspace, codex_runner=subprocess.run, claud
         except ValueError:
             continue
     if not saved:
+        # The claim above already moved this run out of "requested", so it
+        # will not be picked up and retried again on every future poll.
         return {"run_id": run["id"], "outcome": "unresolved", "reason": "no usable public evidence was found"}
 
     current = repo.get_research_run(run["id"])
@@ -88,7 +87,7 @@ def process_pending_run(repo, run, workspace, codex_runner=subprocess.run, claud
 
     try:
         codex_result = run_codex_proposal(brief, workspace, runner=codex_runner)
-    except (RuntimeError, ValueError) as exc:
+    except _SUBPROCESS_FAILURE_TYPES as exc:
         return {"run_id": run["id"], "outcome": "unresolved", "reason": f"codex proposal unavailable: {exc}",
                 "evidence_collected": len(saved)}
     proposal_text = codex_result["proposal"]
@@ -103,7 +102,7 @@ def process_pending_run(repo, run, workspace, codex_runner=subprocess.run, claud
 
     try:
         review = run_claude_review(proposal_text, brief, runner=claude_runner)
-    except (RuntimeError, ValueError) as exc:
+    except _SUBPROCESS_FAILURE_TYPES as exc:
         return {"run_id": run["id"], "outcome": "unresolved", "reason": f"claude review unavailable: {exc}",
                 "evidence_collected": len(saved)}
 

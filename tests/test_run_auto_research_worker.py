@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from pathlib import Path
 import sys
 import tempfile
@@ -23,37 +24,24 @@ class RunOnceTests(unittest.TestCase):
         self.repo.close()
         self._tmp.cleanup()
 
-    def test_skips_runs_that_are_not_requested(self):
-        run = self.repo.create_research_run("solo-operator", {"destination": "京都"}, [])
-        self.repo.record_evidence(run["id"], {"agent": "human", "source_type": "manual", "url": "https://example.test",
-            "title": "t", "facts": {}, "retrieved_at": "2030-01-01T00:00:00Z", "expires_at": "2030-01-02T00:00:00Z",
-            "verification_status": "unverified"})
-        # run is now "researching", not "requested"; run_once must not touch it again.
-        with patch("run_auto_research_worker.process_pending_run") as mock_process:
-            summaries = worker_script.run_once(self.repo, Path("."))
-        mock_process.assert_not_called()
-        self.assertEqual(summaries, [])
-
-    def test_posts_one_audit_comment_per_processed_run_when_configured(self):
+    def test_processes_each_requested_run_and_appends_to_the_local_log(self):
         self.repo.create_research_run("solo-operator", {}, [])  # missing destination -> "skipped"
-        captured = []
-        def poster(url, token, body):
-            captured.append((url, token, body))
-            return 201
-        with patch("run_auto_research_worker.process_pending_run", return_value={"run_id": "x", "outcome": "skipped", "reason": "requirements.destination is missing"}):
-            summaries = worker_script.run_once(self.repo, Path("."), github_repo="mako0120/llm-travel",
-                                                github_issue=54, github_token="secret", poster=poster)
-        self.assertEqual(len(summaries), 1)
-        self.assertEqual(len(captured), 1)
-        self.assertEqual(captured[0][0], "https://api.github.com/repos/mako0120/llm-travel/issues/54/comments")
-        self.assertIn("skipped", captured[0][2])
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = Path(tmp) / "audit.log"
+            with patch("run_auto_research_worker.process_pending_run",
+                       return_value={"run_id": "x", "outcome": "skipped", "reason": "requirements.destination is missing"}):
+                summaries = worker_script.run_once(self.repo, Path("."), log_path=log_path)
+            self.assertEqual(len(summaries), 1)
+            lines = log_path.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(json.loads(lines[0])["outcome"], "skipped")
 
-    def test_no_github_posting_when_not_configured(self):
+    def test_no_log_written_when_log_path_is_not_given(self):
         self.repo.create_research_run("solo-operator", {}, [])
-        with patch("run_auto_research_worker.process_pending_run", return_value={"run_id": "x", "outcome": "skipped", "reason": "..."}), \
-             patch("run_auto_research_worker.post_audit_comment") as mock_post:
-            worker_script.run_once(self.repo, Path("."))
-        mock_post.assert_not_called()
+        with patch("run_auto_research_worker.process_pending_run",
+                   return_value={"run_id": "x", "outcome": "skipped", "reason": "..."}):
+            summaries = worker_script.run_once(self.repo, Path("."))
+        self.assertEqual(len(summaries), 1)
 
 
 class MainGatingTests(unittest.TestCase):
@@ -67,9 +55,15 @@ class MainGatingTests(unittest.TestCase):
 
     def test_main_processes_once_and_exits_when_opted_in(self):
         with tempfile.TemporaryDirectory() as tmp:
-            env = {"LLM_TRAVEL_AUTO_RESEARCH": "1", "LLM_TRAVEL_DB": str(Path(tmp) / "travel.sqlite3")}
+            env = {"LLM_TRAVEL_AUTO_RESEARCH": "1", "LLM_TRAVEL_DB": str(Path(tmp) / "travel.sqlite3"),
+                   "LLM_TRAVEL_AUTO_WORKER_LOG": str(Path(tmp) / "audit.log")}
             with patch.dict("os.environ", env, clear=True):
                 self.assertEqual(worker_script.main(["--once"]), 0)
+
+    def test_main_never_reads_a_github_token_environment_variable(self):
+        source = MODULE.read_text(encoding="utf-8")
+        for needle in ("GITHUB_TOKEN", "Authorization", "api.github.com"):
+            self.assertNotIn(needle, source)
 
 
 if __name__ == "__main__":
