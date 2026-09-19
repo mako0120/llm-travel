@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>詳細旅程 | TRAVIA</title>
+<link rel="stylesheet" href="travia.css">
+<style>
+  .trip-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;flex-wrap:wrap;gap:14px}
+  .trip-head h1{font-size:22px;margin-bottom:6px}
+  .trip-meta{display:flex;gap:14px;font-size:13px;color:var(--sub-text);flex-wrap:wrap}
+  .trip-meta b{color:var(--text)}
+  .trip-tags{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+
+  .day-tabs{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap}
+  .day-tab{padding:10px 18px;border-radius:11px;border:1px solid var(--border);background:#fff;font-weight:700;font-size:13px;color:var(--sub-text)}
+  .day-tab .d{display:block;font-size:11px;font-weight:600;color:var(--sub-text)}
+  .day-tab.active{background:var(--primary);border-color:var(--primary);color:#fff}
+  .day-tab.active .d{color:#DCE4FF}
+  .day-tab.add{color:var(--primary);border-style:dashed}
+
+  .day-layout{display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start}
+
+  .day-title-row{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid var(--border)}
+  .day-title-row h2{font-size:17px}
+  .weather{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--sub-text);background:var(--tint-orange);padding:6px 12px;border-radius:999px;font-weight:700}
+  .weather b{color:var(--text)}
+
+  table.route-table{width:100%;border-collapse:collapse}
+  table.route-table th{text-align:left;font-size:11px;color:var(--sub-text);font-weight:700;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--bg)}
+  table.route-table td{padding:14px;border-bottom:1px solid var(--border);vertical-align:top;font-size:13px}
+  table.route-table tr:last-child td{border-bottom:0}
+  .time-cell{font-weight:800;font-size:14px;white-space:nowrap}
+  .move-cell{color:var(--sub-text);font-size:12px}
+  .spot-cell b{display:block;font-size:14px;margin-bottom:3px}
+  .spot-cell .genre{font-size:11px;color:var(--primary);background:var(--tint-blue);padding:2px 8px;border-radius:999px;font-weight:700}
+  .spot-photo{width:64px;height:48px;border-radius:8px}
+  .cost-cell{font-weight:800;white-space:nowrap}
+  .alt-link{font-size:12px;color:var(--primary);font-weight:700}
+  .day-total{display:flex;justify-content:space-between;align-items:center;padding:16px 22px;background:var(--bg);border-top:1px solid var(--border);border-radius:0 0 var(--radius-lg) var(--radius-lg)}
+  .day-total b{font-size:19px}
+
+  .side-block{padding:18px}
+  .side-block + .side-block{margin-top:16px}
+  .side-block h3{font-size:14px;margin-bottom:12px}
+  .map-mock{border-radius:12px;background:var(--tint-blue);min-height:190px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--primary);font-size:12px;font-weight:700}
+  .map-mock .pin{position:absolute;width:22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;box-shadow:0 3px 8px rgba(49,87,246,.4)}
+
+  .alt-chip-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .alt-chip{border:1px solid var(--border);border-radius:10px;padding:10px;font-size:12px;font-weight:700;text-align:center;color:var(--sub-text)}
+
+  .candidate-row{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+  .candidate-row:last-child{border-bottom:0}
+  .candidate-row .photo.thumb{width:56px;height:56px;flex:0 0 auto}
+  .candidate-row .info{flex:1;min-width:0}
+  .candidate-row .info b{font-size:13px;display:block}
+  .candidate-row .info .meta{font-size:11px;color:var(--sub-text)}
+  .candidate-row .add-btn{width:28px;height:28px;border-radius:50%;border:1px solid var(--primary);color:var(--primary);font-weight:800;background:#fff;flex:0 0 auto}
+
+  @media (max-width:1100px){.day-layout{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="side">
+    <a class="logo"><i>T</i>TRAVIA</a>
+    <button class="new-trip">＋ 新しい旅行をつくる</button>
+    <nav>
+      <a href="../workspace.html">⌂ ホーム</a>
+      <a href="planner.html">✦ AI旅行プランナー</a>
+      <a class="active" href="itinerary.html">▤ 旅程を見る</a>
+      <a href="#">⌕ 情報収集</a>
+      <a href="#">◈ AIダブルチェック</a>
+      <a href="#">▥ 改善履歴</a>
+      <a href="#">♧ 公開プラン一覧</a>
+      <div class="group-label">マイプラン</div>
+      <a class="active" href="#">京都 ゆったり2泊3日</a>
+      <a href="#">箱根 温泉旅行</a>
+    </nav>
+    <div class="footer-nav">
+      <a href="#">⚙ 設定</a>
+      <a href="#">? ヘルプ</a>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="search">⌕ 検索</div>
+      <div class="spacer"></div>
+      <button class="icon-btn" aria-label="通知">♧</button>
+      <div class="avatar">U</div>
+    </div>
+
+    <div class="content">
+      <div class="trip-head">
+        <div>
+          <h1>京都 ゆったり2泊3日</h1>
+          <div class="trip-meta">
+            <span><b>2026/11/15〜11/17</b></span>
+            <span>大人<b>2名</b></span>
+            <span>予算<b>5〜7万円</b></span>
+          </div>
+          <div class="trip-tags">
+            <span class="tag">歴史</span><span class="tag">文化</span><span class="tag">グルメ</span><span class="tag">カフェ</span><span class="tag">写真映え</span>
+          </div>
+        </div>
+        <span class="status verified">✓ 主要情報確認済み</span>
+      </div>
+
+      <div class="day-tabs">
+        <button class="day-tab active">1日目<span class="d">11/15(土)</span></button>
+        <button class="day-tab">2日目<span class="d">11/16(日)</span></button>
+        <button class="day-tab">3日目<span class="d">11/17(月)</span></button>
+        <button class="day-tab add">＋ 日程追加</button>
+      </div>
+
+      <div class="day-layout">
+        <section class="card">
+          <div class="day-title-row">
+            <div>
+              <h2>京都の定番をめぐる王道コース</h2>
+            </div>
+            <div class="weather">☀ <b>18℃ / 8℃</b> 晴れのち曇り</div>
+          </div>
+
+          <table class="route-table">
+            <thead>
+              <tr><th>時間</th><th>移動</th><th>スポット</th><th>内容・見どころ</th><th>食事</th><th>費用</th><th>確認</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="time-cell">08:30</td>
+                <td class="move-cell">京都駅集合</td>
+                <td class="spot-cell"><div class="photo thumb spot-photo"></div></td>
+                <td>京都旅行のスタート地点。荷物をコインロッカーへ。</td>
+                <td>—</td>
+                <td class="cost-cell">¥0</td>
+                <td><span class="status verified">✓</span></td>
+              </tr>
+              <tr>
+                <td class="time-cell">09:00</td>
+                <td class="move-cell">徒歩 12分</td>
+                <td class="spot-cell"><div class="photo thumb spot-photo"></div><b>東本願寺</b><span class="genre">歴史・文化</span></td>
+                <td>朝の澄んだ空気の中、静かに参拝できる時間帯。</td>
+                <td>—</td>
+                <td class="cost-cell">¥0</td>
+                <td><span class="status verified">✓</span></td>
+              </tr>
+              <tr>
+                <td class="time-cell">10:30</td>
+                <td class="move-cell">バス 20分</td>
+                <td class="spot-cell"><div class="photo alt-2 thumb spot-photo"></div><b>清水寺</b><span class="genre">名所・世界遺産</span></td>
+                <td>京都を代表する舞台造りの名所。<br><a class="alt-link">代案: 高台寺 / 建仁寺 →</a></td>
+                <td>—</td>
+                <td class="cost-cell">¥400</td>
+                <td><span class="status verified">✓</span></td>
+              </tr>
+              <tr>
+                <td class="time-cell">12:00</td>
+                <td class="move-cell">徒歩 6分</td>
+                <td class="spot-cell"><div class="photo alt-1 thumb spot-photo"></div><b>二寧坂・三年坂</b><span class="genre">散策・グルメ</span></td>
+                <td>石畳の坂道。食べ歩き・写真スポットが多い。</td>
+                <td>京都ランチ</td>
+                <td class="cost-cell">¥1,800</td>
+                <td><span class="status researching">◌</span></td>
+              </tr>
+              <tr>
+                <td class="time-cell">14:00</td>
+                <td class="move-cell">電車 25分</td>
+                <td class="spot-cell"><div class="photo alt-3 thumb spot-photo"></div><b>伏見稲荷大社</b><span class="genre">神社</span></td>
+                <td>千本鳥居で有名。夕方に近づくほど混雑が緩和。</td>
+                <td>—</td>
+                <td class="cost-cell">¥0</td>
+                <td><span class="status verified">✓</span></td>
+              </tr>
+              <tr>
+                <td class="time-cell">16:00</td>
+                <td class="move-cell">電車 15分</td>
+                <td class="spot-cell"><div class="photo thumb spot-photo"></div><b>錦市場</b><span class="genre">グルメ</span></td>
+                <td>「京の台所」。食べ歩きグルメが充実。</td>
+                <td>軽食</td>
+                <td class="cost-cell">¥1,200</td>
+                <td><span class="status warning">△ 要再確認</span></td>
+              </tr>
+              <tr>
+                <td class="time-cell">18:00</td>
+                <td class="move-cell">徒歩 10分</td>
+                <td class="spot-cell"><div class="photo alt-2 thumb spot-photo"></div><b>先斗町エリア</b><span class="genre">夕食</span></td>
+                <td>鴨川沿いの京料理店で夕食。</td>
+                <td>京料理</td>
+                <td class="cost-cell">¥5,000</td>
+                <td><span class="status researching">◌</span></td>
+              </tr>
+              <tr>
+                <td class="time-cell">20:00</td>
+                <td class="move-cell">タクシー 10分</td>
+                <td class="spot-cell"><div class="photo thumb spot-photo"></div><b>ホテルチェックイン</b></td>
+                <td>1日目の宿泊先へ。</td>
+                <td>—</td>
+                <td class="cost-cell">¥0</td>
+                <td><span class="status verified">✓</span></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="day-total">
+            <span>1日目 合計費用</span>
+            <b>約 8,400円</b>
+          </div>
+        </section>
+
+        <aside>
+          <div class="card side-block">
+            <h3>この日のルートマップ</h3>
+            <div class="map-mock">
+              <div class="pin" style="top:20%;left:15%">1</div>
+              <div class="pin" style="top:35%;left:45%">2</div>
+              <div class="pin" style="top:55%;left:30%">3</div>
+              <div class="pin" style="top:65%;left:60%">4</div>
+              <div class="pin" style="top:40%;left:75%">5</div>
+              <div class="pin" style="top:20%;left:85%">6</div>
+              地図プレビュー(実装時にGoogle Maps等を接続)
+            </div>
+          </div>
+
+          <div class="card side-block">
+            <h3>この日の代替プラン</h3>
+            <div class="alt-chip-grid">
+              <span class="alt-chip">☔ 雨の日</span>
+              <span class="alt-chip">◎ 混雑時</span>
+              <span class="alt-chip">🦶 体力を抑えたい</span>
+              <span class="alt-chip">◆ 穴場重視</span>
+            </div>
+          </div>
+
+          <div class="card side-block">
+            <h3>カフェ候補</h3>
+            <div class="candidate-row">
+              <div class="photo thumb"></div>
+              <div class="info"><b>% Arabica 京都東山</b><div class="meta">カフェ ・ ¥¥ ・ ★4.5</div></div>
+              <button class="add-btn">＋</button>
+            </div>
+            <div class="candidate-row">
+              <div class="photo alt-1 thumb"></div>
+              <div class="info"><b>よーじやカフェ</b><div class="meta">カフェ ・ ¥¥ ・ ★4.3</div></div>
+              <button class="add-btn">＋</button>
+            </div>
+            <div class="candidate-row">
+              <div class="photo alt-2 thumb"></div>
+              <div class="info"><b>茶寮 宝泉</b><div class="meta">喫茶店 ・ ¥¥¥ ・ ★4.6</div></div>
+              <button class="add-btn">＋</button>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
