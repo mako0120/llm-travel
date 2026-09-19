@@ -43,9 +43,9 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(sources['nominatim']['state'], 'available_no_key')
         self.assertEqual(sources['official_gtfs']['state'], 'feed_selection_required')
 
-    @patch("travel.webapp.OpenMeteoAdapter")
-    @patch("travel.webapp.WikimediaAdapter")
-    @patch("travel.webapp.NominatimAdapter")
+    @patch("travel.free_sources.OpenMeteoAdapter")
+    @patch("travel.free_sources.WikimediaAdapter")
+    @patch("travel.free_sources.NominatimAdapter")
     def test_free_research_is_bounded_user_triggered_and_keeps_results_unverified(self, nominatim, wikimedia, open_meteo):
         from travel.providers import ProviderResult
         nominatim.return_value.search_destination.return_value = ProviderResult(

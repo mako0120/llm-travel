@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>清水寺 | TRAVIA</title>
+<link rel="stylesheet" href="travia.css">
+<style>
+  .gallery{display:grid;grid-template-columns:2fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:8px;margin-bottom:20px}
+  .gallery .photo:first-child{grid-row:1/3;min-height:260px}
+  .gallery .photo{min-height:126px;border-radius:var(--radius)}
+  .spot-title-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+  .spot-title-row h1{font-size:22px}
+  .rating-row{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--sub-text);margin-top:4px}
+  .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:0}
+  .info-grid .stat-row{grid-column:span 1}
+  .confirm-box{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:var(--tint-green);border-radius:var(--radius);margin:16px 0}
+  .related-row{display:flex;gap:12px;overflow-x:auto}
+  .related-row .mini{flex:0 0 160px}
+  .mini .photo{min-height:96px;border-radius:var(--radius) var(--radius) 0 0}
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="side">
+    <a class="logo"><i>T</i>TRAVIA</a>
+    <button class="new-trip">＋ 新しい旅行をつくる</button>
+    <nav>
+      <a href="home.html">⌂ ホーム</a>
+      <a href="planner.html">✦ AI旅行プランナー</a>
+      <a class="active" href="itinerary.html">▤ 旅程を見る</a>
+      <a href="#">⌕ 情報収集</a>
+      <a href="double-check.html">◈ AIダブルチェック</a>
+      <a href="history.html">▥ 改善履歴</a>
+      <a href="public-list.html">♧ 公開プラン一覧</a>
+    </nav>
+    <div class="footer-nav"><a href="settings.html">⚙ 設定</a><a href="#">? ヘルプ</a></div>
+  </aside>
+  <div class="main">
+    <div class="topbar"><div class="search">⌕ 検索</div><div class="spacer"></div><div class="avatar">U</div></div>
+    <div class="content" style="max-width:900px">
+      <div class="gallery">
+        <div class="photo alt-2"><span></span></div>
+        <div class="photo"><span></span></div>
+        <div class="photo alt-1"><span></span></div>
+        <div class="photo alt-3"><span></span></div>
+        <div class="photo"><span></span></div>
+      </div>
+
+      <div class="spot-title-row">
+        <div>
+          <h1>清水寺</h1>
+          <div class="rating-row"><span class="stars">★★★★☆ 4.5</span><span>口コミ 12,345件</span></div>
+          <div class="trip-tags" style="margin-top:10px"><span class="tag">世界遺産</span><span class="tag">名所</span><span class="tag">紅葉</span><span class="tag">写真映え</span></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <a class="btn btn-secondary" href="#">Google Maps</a>
+          <button class="btn btn-primary">ルートに追加</button>
+        </div>
+      </div>
+
+      <div class="card" style="padding:20px 22px;margin-top:18px">
+        <div class="info-grid">
+          <div class="stat-row"><span>住所</span><b>京都府京都市東山区清水1丁目294</b></div>
+          <div class="stat-row"><span>滞在目安</span><b>約90分</b></div>
+          <div class="stat-row"><span>拝観料</span><b>大人400円</b></div>
+          <div class="stat-row"><span>営業時間</span><b>6:00〜18:00</b></div>
+          <div class="stat-row"><span>混雑状況</span><b>やや混雑(午前が比較的空いています)</b></div>
+          <div class="stat-row"><span>アクセス</span><b>京都駅からバス約20分</b></div>
+        </div>
+        <div class="confirm-box">
+          <span class="status verified">✓ 公式情報確認済み</span>
+          <span style="font-size:12px;color:var(--sub-text)">最終確認: 2026/09/19</span>
+        </div>
+        <div>
+          <h4 style="font-size:12px;color:var(--sub-text);margin:0 0 8px">おすすめ理由</h4>
+          <ul style="margin:0;padding-left:18px;font-size:13px">
+            <li>京都を代表する名所で、歴史・文化テーマに最適</li>
+            <li>紅葉シーズンにおすすめ</li>
+            <li>二寧坂・三年坂と組み合わせやすい立地</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="page-head" style="margin-top:28px"><h1 style="font-size:16px">代替スポット</h1></div>
+      <div class="related-row" style="margin-bottom:28px">
+        <div class="card mini"><div class="photo"><span></span></div><div class="body" style="padding:10px 12px"><b style="font-size:13px">高台寺</b></div></div>
+        <div class="card mini"><div class="photo alt-1"><span></span></div><div class="body" style="padding:10px 12px"><b style="font-size:13px">建仁寺</b></div></div>
+        <div class="card mini"><div class="photo alt-2"><span></span></div><div class="body" style="padding:10px 12px"><b style="font-size:13px">南禅寺</b></div></div>
+      </div>
+
+      <div class="page-head"><h1 style="font-size:16px">周辺カフェ</h1></div>
+      <div class="related-row">
+        <div class="card mini"><div class="photo alt-3"><span></span></div><div class="body" style="padding:10px 12px"><b style="font-size:13px">% Arabica 京都東山</b></div></div>
+        <div class="card mini"><div class="photo"><span></span></div><div class="body" style="padding:10px 12px"><b style="font-size:13px">よーじやカフェ</b></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

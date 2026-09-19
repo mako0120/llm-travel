@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>みんなの旅行プラン | TRAVIA</title>
+<link rel="stylesheet" href="travia.css">
+<style>
+  .filter-bar{display:flex;gap:10px;margin-bottom:22px;flex-wrap:wrap}
+  .filter-bar select,.filter-bar input{border:1px solid var(--border);border-radius:10px;padding:9px 12px;font-size:13px;font-family:inherit}
+  .plan-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  .plan-card{overflow:hidden;padding:0}
+  .plan-card .photo{min-height:130px;border-radius:var(--radius-lg) var(--radius-lg) 0 0}
+  .plan-card .body{padding:13px 15px}
+  .plan-card b{font-size:14px;display:block;margin-bottom:6px}
+  .plan-card .meta{display:flex;justify-content:space-between;font-size:12px;color:var(--sub-text)}
+  @media (max-width:1100px){.plan-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="side">
+    <a class="logo"><i>T</i>TRAVIA</a>
+    <button class="new-trip">＋ 新しい旅行をつくる</button>
+    <nav>
+      <a href="home.html">⌂ ホーム</a>
+      <a href="planner.html">✦ AI旅行プランナー</a>
+      <a href="itinerary.html">▤ 旅程を見る</a>
+      <a href="#">⌕ 情報収集</a>
+      <a href="double-check.html">◈ AIダブルチェック</a>
+      <a href="history.html">▥ 改善履歴</a>
+      <a class="active" href="public-list.html">♧ 公開プラン一覧</a>
+    </nav>
+    <div class="footer-nav"><a href="settings.html">⚙ 設定</a><a href="#">? ヘルプ</a></div>
+  </aside>
+  <div class="main">
+    <div class="topbar"><div class="search">⌕ 検索</div><div class="spacer"></div><div class="avatar">U</div></div>
+    <div class="content">
+      <div class="page-head"><h1>みんなの旅行プラン</h1></div>
+
+      <div class="filter-bar">
+        <input placeholder="⌕ 行き先・プラン名・キーワード" style="flex:1;min-width:220px">
+        <select><option>エリア: すべて</option></select>
+        <select><option>日数: 指定なし</option></select>
+        <select><option>予算: すべて</option></select>
+        <select><option>並び替え: 人気順</option></select>
+      </div>
+
+      <div class="plan-grid">
+        <a class="card plan-card" href="public-detail.html">
+          <div class="photo alt-2"><span></span></div>
+          <div class="body"><b>京都 紅葉とグルメの2泊3日</b><div class="meta"><span>2泊3日</span><span class="stars">★4.8</span></div><div class="meta" style="margin-top:6px"><span>5〜7万円</span><span>保存 342</span></div></div>
+        </a>
+        <a class="card plan-card" href="#">
+          <div class="photo alt-1"><span></span></div>
+          <div class="body"><b>箱根 温泉旅行</b><div class="meta"><span>1泊2日</span><span class="stars">★4.6</span></div><div class="meta" style="margin-top:6px"><span>3〜5万円</span><span>保存 128</span></div></div>
+        </a>
+        <a class="card plan-card" href="#">
+          <div class="photo"><span></span></div>
+          <div class="body"><b>大阪 グルメ旅</b><div class="meta"><span>2泊3日</span><span class="stars">★4.5</span></div><div class="meta" style="margin-top:6px"><span>4〜6万円</span><span>保存 96</span></div></div>
+        </a>
+        <a class="card plan-card" href="#">
+          <div class="photo alt-3"><span></span></div>
+          <div class="body"><b>北海道 大自然旅</b><div class="meta"><span>3泊4日</span><span class="stars">★4.9</span></div><div class="meta" style="margin-top:6px"><span>8〜10万円</span><span>保存 511</span></div></div>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

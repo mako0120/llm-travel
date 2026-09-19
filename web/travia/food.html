@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>カフェ・グルメを選ぶ | TRAVIA</title>
+<link rel="stylesheet" href="travia.css">
+<style>
+  .food-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px}
+  .food-card{overflow:hidden;padding:0}
+  .food-card .photo{min-height:130px;border-radius:var(--radius-lg) var(--radius-lg) 0 0}
+  .food-card .body{padding:14px 16px}
+  .food-card b{font-size:14px;display:block;margin-bottom:4px}
+  .food-card .meta{display:flex;justify-content:space-between;font-size:12px;color:var(--sub-text);margin-top:8px}
+  .food-card .foot{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="side">
+    <a class="logo"><i>T</i>TRAVIA</a>
+    <button class="new-trip">＋ 新しい旅行をつくる</button>
+    <nav>
+      <a href="home.html">⌂ ホーム</a>
+      <a href="planner.html">✦ AI旅行プランナー</a>
+      <a class="active" href="itinerary.html">▤ 旅程を見る</a>
+      <a href="#">⌕ 情報収集</a>
+      <a href="double-check.html">◈ AIダブルチェック</a>
+      <a href="history.html">▥ 改善履歴</a>
+      <a href="public-list.html">♧ 公開プラン一覧</a>
+    </nav>
+    <div class="footer-nav"><a href="settings.html">⚙ 設定</a><a href="#">? ヘルプ</a></div>
+  </aside>
+  <div class="main">
+    <div class="topbar"><div class="search">⌕ 検索</div><div class="spacer"></div><div class="avatar">U</div></div>
+    <div class="content">
+      <div class="page-head"><h1>カフェ・グルメを選ぶ</h1><p>二寧坂・三年坂 周辺の候補です</p></div>
+
+      <div class="tabs">
+        <button class="tab active">ランチ</button>
+        <button class="tab">カフェ</button>
+        <button class="tab">夕食</button>
+        <button class="tab">軽食・スイーツ</button>
+      </div>
+
+      <div class="pill-select">
+        <span class="pill selected">和食</span><span class="pill">寿司</span><span class="pill">ラーメン</span>
+        <span class="pill">喫茶店</span><span class="pill selected">カフェ</span><span class="pill">スイーツ</span><span class="pill">居酒屋</span>
+      </div>
+
+      <div class="food-grid">
+        <div class="card food-card">
+          <div class="photo"><span></span></div>
+          <div class="body">
+            <b>京都ランチ 竹むら</b>
+            <div class="trip-tags"><span class="tag">和食</span></div>
+            <div class="meta"><span>湯豆腐御膳が名物</span><span class="stars">★4.4</span></div>
+            <div class="foot"><span style="font-size:13px;font-weight:800">¥1,800</span><span class="status verified">✓</span></div>
+            <div class="foot"><span style="font-size:12px;color:var(--sub-text)">徒歩3分</span><button class="btn btn-secondary" style="padding:7px 12px">旅程に追加</button></div>
+          </div>
+        </div>
+        <div class="card food-card">
+          <div class="photo alt-1"><span></span></div>
+          <div class="body">
+            <b>にしんそば 松葉</b>
+            <div class="trip-tags"><span class="tag">和食</span></div>
+            <div class="meta"><span>京都の郷土料理</span><span class="stars">★4.2</span></div>
+            <div class="foot"><span style="font-size:13px;font-weight:800">¥1,400</span><span class="status researching">◌</span></div>
+            <div class="foot"><span style="font-size:12px;color:var(--sub-text)">徒歩8分</span><button class="btn btn-secondary" style="padding:7px 12px">旅程に追加</button></div>
+          </div>
+        </div>
+        <div class="card food-card">
+          <div class="photo alt-2"><span></span></div>
+          <div class="body">
+            <b>% Arabica 京都東山</b>
+            <div class="trip-tags"><span class="tag">カフェ</span></div>
+            <div class="meta"><span>清水寺帰りに好立地</span><span class="stars">★4.5</span></div>
+            <div class="foot"><span style="font-size:13px;font-weight:800">¥600</span><span class="status verified">✓</span></div>
+            <div class="foot"><span style="font-size:12px;color:var(--sub-text)">徒歩5分</span><button class="btn btn-primary" style="padding:7px 12px">入れ替える</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

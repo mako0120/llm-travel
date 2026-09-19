@@ -140,6 +140,28 @@ class RepositoryTests(unittest.TestCase):
         )
         self.assertEqual(rule["evidence"], {"evidence_type": "qualitative_comment_only", "feedback_ids": [feedback["id"]]})
 
+    def test_claim_research_run_is_atomic_and_single_use(self):
+        run = self.repo.create_research_run("solo-operator", {"destination": "Kyoto"}, [])
+        self.assertTrue(self.repo.claim_research_run(run["id"]))
+        self.assertEqual(self.repo.get_research_run(run["id"])["state"], "researching")
+        # A second, overlapping claim attempt (e.g. a second worker instance) must fail.
+        self.assertFalse(self.repo.claim_research_run(run["id"]))
+
+    def test_claim_research_run_rejects_a_run_that_is_already_past_requested(self):
+        run = self.repo.create_research_run("solo-operator", {"destination": "Kyoto"}, [])
+        self.repo.record_evidence(run["id"], {"agent": "human", "source_type": "manual", "url": "https://example.test",
+            "title": "t", "facts": {}, "retrieved_at": "2030-01-01T00:00:00Z", "expires_at": "2030-01-02T00:00:00Z",
+            "verification_status": "unverified"})
+        self.assertFalse(self.repo.claim_research_run(run["id"]))
+
+    def test_list_research_runs_filters_by_state(self):
+        requested = self.repo.create_research_run("solo-operator", {"destination": "Kyoto"}, [])
+        self.repo.create_research_run("solo-operator", {"destination": "Osaka"}, [])
+        self.repo.claim_research_run(requested["id"])
+        remaining = self.repo.list_research_runs(state="requested")
+        self.assertEqual(len(remaining), 1)
+        self.assertEqual(remaining[0]["requirements"]["destination"], "Osaka")
+
 
 if __name__ == "__main__":
     unittest.main()

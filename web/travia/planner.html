@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI旅行プランナー | TRAVIA</title>
+<link rel="stylesheet" href="travia.css">
+<style>
+  .planner-shell{display:grid;grid-template-columns:1fr 340px;gap:0;height:calc(100vh - 64px)}
+  .chat-col{display:flex;flex-direction:column;border-right:1px solid var(--border)}
+  .chat-head{padding:18px 28px;border-bottom:1px solid var(--border)}
+  .chat-head b{font-size:16px}
+  .chat-head p{margin:2px 0 0;font-size:12px;color:var(--sub-text)}
+  .chat-scroll{flex:1;overflow-y:auto;padding:24px 28px;display:flex;flex-direction:column;gap:16px}
+
+  .msg{display:flex;gap:10px;max-width:640px}
+  .msg.user{align-self:flex-end;flex-direction:row-reverse}
+  .avatar{width:30px;height:30px;border-radius:50%;background:var(--tint-blue);color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex:0 0 auto}
+  .msg.user .avatar{background:var(--primary);color:#fff}
+  .bubble{background:var(--surface);border:1px solid var(--border);border-radius:16px 16px 16px 4px;padding:13px 16px;font-size:14px}
+  .msg.user .bubble{background:var(--primary);color:#fff;border-color:var(--primary);border-radius:16px 16px 4px 16px}
+
+  .chip-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+  .opt-chip{border:1px solid var(--border);background:#fff;border-radius:999px;padding:8px 14px;font-size:13px;font-weight:600}
+  .opt-chip.selected{background:var(--tint-blue);border-color:var(--primary);color:var(--primary)}
+
+  .composer{border-top:1px solid var(--border);padding:16px 28px;display:flex;gap:10px}
+  .composer input{flex:1;border:1px solid var(--border);border-radius:12px;padding:13px 16px;font-size:14px;font-family:inherit}
+  .composer input:focus{outline:2px solid var(--primary);outline-offset:1px}
+
+  .preview-col{padding:22px;overflow-y:auto;background:var(--surface)}
+  .preview-col h3{font-size:15px;margin-bottom:16px}
+  .route-line{display:flex;align-items:center;gap:8px;font-weight:800;font-size:16px;margin-bottom:18px}
+  .route-line .arrow{color:var(--primary)}
+  .p-row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px}
+  .p-row:last-of-type{border-bottom:0}
+  .p-row b{color:var(--text)}
+  .p-row span:first-child{color:var(--sub-text)}
+  .p-section{margin-top:18px}
+  .p-section h4{font-size:12px;color:var(--sub-text);font-weight:700;margin:0 0 8px}
+  .p-tags{display:flex;flex-wrap:wrap;gap:6px}
+  .cta-fixed{margin-top:22px;position:sticky;bottom:0}
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="side">
+    <a class="logo"><i>T</i>TRAVIA</a>
+    <button class="new-trip">＋ 新しい旅行をつくる</button>
+    <nav>
+      <a href="../workspace.html">⌂ ホーム</a>
+      <a class="active" href="planner.html">✦ AI旅行プランナー</a>
+      <a href="itinerary.html">▤ 旅程を見る</a>
+      <a href="#">⌕ 情報収集</a>
+      <a href="#">◈ AIダブルチェック</a>
+      <a href="#">▥ 改善履歴</a>
+      <a href="#">♧ 公開プラン一覧</a>
+      <div class="group-label">マイプラン</div>
+      <a href="#">京都 ゆったり2泊3日</a>
+      <a href="#">箱根 温泉旅行</a>
+    </nav>
+    <div class="footer-nav">
+      <a href="#">⚙ 設定</a>
+      <a href="#">? ヘルプ</a>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="search">⌕ 検索</div>
+      <div class="spacer"></div>
+      <button class="icon-btn" aria-label="通知">♧</button>
+      <div class="avatar">U</div>
+    </div>
+
+    <div class="planner-shell">
+      <section class="chat-col">
+        <div class="chat-head"><b>AI旅行プランナー</b><p>一問ずつ条件を確認し、情報収集後に根拠付きの旅程を作成します。</p></div>
+        <div class="chat-scroll">
+          <div class="msg ai"><div class="avatar">AI</div><div class="bubble">こんにちは！どんな旅行を計画していますか?</div></div>
+          <div class="msg user"><div class="avatar">U</div><div class="bubble">11月に京都へ2泊3日で行きたいです。歴史とグルメとカフェ巡りを楽しみたいです。</div></div>
+          <div class="msg ai">
+            <div class="avatar">AI</div>
+            <div class="bubble">
+              誰と行きますか?
+              <div class="chip-row">
+                <span class="opt-chip">一人</span>
+                <span class="opt-chip">友人</span>
+                <span class="opt-chip selected">恋人</span>
+                <span class="opt-chip">家族</span>
+                <span class="opt-chip">その他</span>
+              </div>
+            </div>
+          </div>
+          <div class="msg user"><div class="avatar">U</div><div class="bubble">恋人と2人で行きます。</div></div>
+          <div class="msg ai">
+            <div class="avatar">AI</div>
+            <div class="bubble">
+              ありがとうございます。特に大切にしたいテーマはありますか?
+              <div class="chip-row">
+                <span class="opt-chip selected">歴史・文化</span>
+                <span class="opt-chip selected">グルメ</span>
+                <span class="opt-chip selected">カフェ巡り</span>
+                <span class="opt-chip">写真映え</span>
+                <span class="opt-chip">温泉</span>
+                <span class="opt-chip">自然</span>
+                <span class="opt-chip">ショッピング</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="composer">
+          <input placeholder="メッセージを入力…">
+          <button class="btn btn-primary">送信</button>
+        </div>
+      </section>
+
+      <aside class="preview-col">
+        <h3>入力条件プレビュー</h3>
+        <div class="route-line">大阪 <span class="arrow">→</span> 京都</div>
+        <div class="p-row"><span>日程</span><b>2026/11/15〜11/17(2泊3日)</b></div>
+        <div class="p-row"><span>人数</span><b>大人2名</b></div>
+        <div class="p-row"><span>予算</span><b>5〜7万円</b></div>
+
+        <div class="p-section">
+          <h4>テーマ</h4>
+          <div class="p-tags"><span class="tag">歴史・文化</span><span class="tag">グルメ</span><span class="tag">カフェ巡り</span></div>
+        </div>
+        <div class="p-section">
+          <h4>食事の好み</h4>
+          <div class="p-tags"><span class="tag">和食</span><span class="tag">カフェ・喫茶店</span></div>
+        </div>
+        <div class="p-section">
+          <h4>移動</h4>
+          <div class="p-tags"><span class="tag">徒歩</span><span class="tag">電車</span></div>
+        </div>
+        <div class="p-section">
+          <h4>特別な要望</h4>
+          <p style="font-size:13px;color:var(--sub-text);margin:0">「静かな喫茶店に行きたい」「歩きすぎたくない」</p>
+        </div>
+
+        <div class="cta-fixed">
+          <button class="btn btn-primary" style="width:100%">この条件でプランを作成する</button>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+</body>
+</html>
