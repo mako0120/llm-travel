@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ルート・移動 | TRAVIA</title>
+<link rel="stylesheet" href="travia.css">
+<style>
+  .move-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:18px}
+  .move-card{padding:18px;text-align:center;cursor:pointer}
+  .move-card.selected{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary) inset}
+  .move-card i{font-style:normal;font-size:22px;display:block;margin-bottom:8px}
+  .move-card .val{font-size:18px;font-weight:800;margin:6px 0 2px}
+  .move-card .l{font-size:12px;color:var(--sub-text)}
+  .compare-toggle{display:flex;gap:8px;margin-bottom:4px}
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="side">
+    <a class="logo"><i>T</i>TRAVIA</a>
+    <button class="new-trip">＋ 新しい旅行をつくる</button>
+    <nav>
+      <a href="home.html">⌂ ホーム</a>
+      <a href="planner.html">✦ AI旅行プランナー</a>
+      <a class="active" href="itinerary.html">▤ 旅程を見る</a>
+      <a href="#">⌕ 情報収集</a>
+      <a href="double-check.html">◈ AIダブルチェック</a>
+      <a href="history.html">▥ 改善履歴</a>
+      <a href="public-list.html">♧ 公開プラン一覧</a>
+    </nav>
+    <div class="footer-nav"><a href="settings.html">⚙ 設定</a><a href="#">? ヘルプ</a></div>
+  </aside>
+  <div class="main">
+    <div class="topbar"><div class="search">⌕ 検索</div><div class="spacer"></div><div class="avatar">U</div></div>
+    <div class="content">
+      <div class="page-head"><h1>ルート・移動</h1><p>二寧坂・三年坂 → 伏見稲荷大社</p></div>
+
+      <div class="day-tabs">
+        <button class="day-tab active">1日目</button>
+        <button class="day-tab">2日目</button>
+        <button class="day-tab">3日目</button>
+      </div>
+
+      <div class="two-col">
+        <div class="card" style="padding:20px">
+          <div class="map-mock" style="min-height:320px">
+            <div class="pin" style="top:30%;left:20%">1</div>
+            <div class="pin" style="top:55%;left:60%">2</div>
+            地図プレビュー(実装時にGoogle Maps/Routesを接続)
+          </div>
+        </div>
+
+        <aside class="card" style="padding:18px">
+          <h3 style="font-size:14px;margin-bottom:12px">移動を比較</h3>
+          <div class="compare-toggle">
+            <span class="pill selected">バランス</span><span class="pill">最短</span><span class="pill">最安</span><span class="pill">歩きを減らす</span>
+          </div>
+        </aside>
+      </div>
+
+      <div class="move-grid">
+        <div class="card move-card"><i>🚶</i><div class="l">徒歩</div><div class="val">40分</div><div class="l">約2.1km ・ ¥0</div></div>
+        <div class="card move-card selected"><i>🚃</i><div class="l">電車</div><div class="val">30分</div><div class="l">¥480</div></div>
+        <div class="card move-card"><i>🚌</i><div class="l">バス</div><div class="val">20分</div><div class="l">¥230</div></div>
+        <div class="card move-card"><i>🚕</i><div class="l">タクシー</div><div class="val">15分</div><div class="l">¥1,800〜</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

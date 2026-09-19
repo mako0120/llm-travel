@@ -124,3 +124,76 @@ h1,h2,h3{font-weight:800;margin:0;letter-spacing:-.01em}
 .bottom-nav a.active{color:var(--primary)}
 .bottom-nav .fab{margin-top:-22px;width:48px;height:48px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 8px 18px -4px rgba(49,87,246,.55)}
 @media (max-width:900px){.bottom-nav{display:flex}}
+
+/* ---------- page scaffolding shared by every screen ---------- */
+.page-head{margin-bottom:22px}
+.page-head h1{font-size:22px;margin-bottom:6px}
+.page-head p{margin:0;font-size:13px;color:var(--sub-text)}
+.two-col{display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+@media (max-width:1100px){.two-col{grid-template-columns:1fr}.grid-3,.grid-4{grid-template-columns:repeat(2,1fr)}}
+
+/* ---------- progress checklist (AI generating) ---------- */
+.progress-list{display:flex;flex-direction:column;gap:2px}
+.progress-item{display:flex;align-items:center;gap:12px;padding:12px 4px;font-size:14px;font-weight:600;color:var(--sub-text)}
+.progress-item .dot{width:22px;height:22px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid var(--border);color:var(--border)}
+.progress-item.done{color:var(--text)}
+.progress-item.done .dot{background:var(--verified);border-color:var(--verified);color:#fff}
+.progress-item.active{color:var(--text)}
+.progress-item.active .dot{border-color:var(--primary);color:var(--primary);animation:pulse 1.4s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(49,87,246,.35)}50%{box-shadow:0 0 0 6px rgba(49,87,246,0)}}
+
+/* ---------- tabs ---------- */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px}
+.tab{padding:12px 6px;margin-right:20px;font-size:14px;font-weight:700;color:var(--sub-text);border-bottom:2px solid transparent;background:none;border-top:0;border-left:0;border-right:0}
+.tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+
+/* ---------- data table (evidence, etc.) ---------- */
+table.data-table{width:100%;border-collapse:collapse;font-size:13px}
+table.data-table th{text-align:left;font-size:11px;color:var(--sub-text);font-weight:700;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--bg)}
+table.data-table td{padding:13px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+table.data-table tr:last-child td{border-bottom:0}
+
+/* ---------- timeline (improvement history) ---------- */
+.timeline{position:relative;padding-left:26px}
+.timeline::before{content:"";position:absolute;left:6px;top:6px;bottom:6px;width:2px;background:var(--border)}
+.timeline-item{position:relative;padding-bottom:26px}
+.timeline-item:last-child{padding-bottom:0}
+.timeline-item::before{content:"";position:absolute;left:-26px;top:2px;width:14px;height:14px;border-radius:50%;background:var(--primary);border:3px solid var(--tint-blue)}
+.timeline-item .v{font-weight:800;font-size:13px;color:var(--primary)}
+.timeline-item .when{font-size:12px;color:var(--sub-text);margin-left:8px}
+.timeline-item p{margin:6px 0 0;font-size:13px}
+.timeline-item .diff{display:flex;gap:16px;margin-top:8px;font-size:12px}
+.timeline-item .diff .before{color:var(--warning)}
+.timeline-item .diff .after{color:var(--verified)}
+
+/* ---------- compare (before/after) ---------- */
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.compare .col{padding:16px;border-radius:var(--radius);border:1px solid var(--border)}
+.compare .col.before{background:#FFF7F7}
+.compare .col.after{background:var(--tint-green)}
+.compare .col h4{font-size:13px;margin-bottom:10px}
+.compare ul{margin:0;padding-left:18px;font-size:13px}
+.stat-row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px}
+.stat-row:last-child{border-bottom:0}
+
+/* ---------- form (settings) ---------- */
+.form-row{margin-bottom:20px}
+.form-row label{display:block;font-size:13px;font-weight:700;margin-bottom:8px}
+.pill-select{display:flex;flex-wrap:wrap;gap:8px}
+.pill{border:1px solid var(--border);background:#fff;border-radius:999px;padding:9px 16px;font-size:13px;font-weight:600;color:var(--sub-text)}
+.pill.selected{background:var(--tint-blue);border-color:var(--primary);color:var(--primary)}
+.settings-shell{display:grid;grid-template-columns:200px 1fr;gap:24px}
+.settings-nav{display:flex;flex-direction:column;gap:2px}
+.settings-nav a{padding:10px 12px;border-radius:10px;font-size:13px;font-weight:700;color:var(--sub-text)}
+.settings-nav a.active{background:var(--tint-blue);color:var(--primary)}
+
+/* ---------- rating stars ---------- */
+.stars{color:#F4A340;font-weight:700;font-size:13px}
+
+/* ---------- summary stat tiles ---------- */
+.stat-tile{padding:20px;text-align:left}
+.stat-tile .n{font-size:26px;font-weight:800;display:block}
+.stat-tile .l{font-size:12px;color:var(--sub-text)}
