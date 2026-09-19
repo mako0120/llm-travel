@@ -85,6 +85,9 @@ class ProcessPendingRunTests(unittest.TestCase):
         self.assertEqual(result["outcome"], "unresolved")
         self.assertEqual(result["reason"], "codex reported needs_research")
         self.assertEqual(result["evidence_collected"], 1)
+        stored = self.repo.latest_auto_worker_result(self.run["id"])
+        self.assertEqual(stored["outcome"], "unresolved")
+        self.assertEqual(stored["missing_evidence"], ["営業時間"])
 
     @patch("travel.auto_worker.collect_public_evidence")
     def test_unresolved_when_claude_requests_revision(self, collect):
@@ -104,6 +107,9 @@ class ProcessPendingRunTests(unittest.TestCase):
         self.assertEqual(result["outcome"], "reviewed_not_saved")
         self.assertEqual(self.repo.get_research_run(self.run["id"])["state"], "researching")
         self.assertEqual(self.repo.fresh_verified_evidence(self.run["id"]), [])
+        stored = self.repo.latest_auto_worker_result(self.run["id"])
+        self.assertEqual(stored["outcome"], "reviewed_not_saved")
+        self.assertIn("remains unverified", stored["reason"])
 
     @patch("travel.auto_worker.collect_public_evidence")
     def test_a_codex_timeout_is_reported_not_raised(self, collect):
