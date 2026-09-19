@@ -9,7 +9,7 @@ Get-Content -LiteralPath $ConfigPath | ForEach-Object {
     $key, $value = $_ -split '=', 2
     if ($key -and $value) { $settings[$key] = $value }
 }
-foreach ($key in 'LLM_TRAVEL_WEBHOOK_SECRET', 'LLM_TRAVEL_WEBHOOK_PORT', 'LLM_TRAVEL_WORKSPACE', 'CODEX_WEBHOOK_AUTORUN', 'LLM_TRAVEL_SMEE_URL', 'LLM_TRAVEL_WEBHOOK_ALLOWED_LOGINS') {
+foreach ($key in 'LLM_TRAVEL_WEBHOOK_SECRET', 'LLM_TRAVEL_WEBHOOK_PORT', 'LLM_TRAVEL_WORKSPACE', 'CODEX_WEBHOOK_AUTORUN', 'LLM_TRAVEL_SMEE_URL', 'LLM_TRAVEL_WEBHOOK_ALLOWED_LOGINS', 'LLM_TRAVEL_CLAUDE_LOGINS') {
     if (-not $settings[$key]) { throw "Missing $key in $ConfigPath" }
 }
 
@@ -37,7 +37,7 @@ function Start-RestrictedProcess {
 
 $workspace = $settings['LLM_TRAVEL_WORKSPACE']
 $receiverSettings = @{}
-foreach ($key in 'LLM_TRAVEL_WEBHOOK_SECRET', 'LLM_TRAVEL_WEBHOOK_PORT', 'LLM_TRAVEL_WORKSPACE', 'CODEX_WEBHOOK_AUTORUN', 'LLM_TRAVEL_WEBHOOK_ALLOWED_LOGINS') { $receiverSettings[$key] = $settings[$key] }
+foreach ($key in 'LLM_TRAVEL_WEBHOOK_SECRET', 'LLM_TRAVEL_WEBHOOK_PORT', 'LLM_TRAVEL_WORKSPACE', 'CODEX_WEBHOOK_AUTORUN', 'LLM_TRAVEL_WEBHOOK_ALLOWED_LOGINS', 'LLM_TRAVEL_CLAUDE_LOGINS') { $receiverSettings[$key] = $settings[$key] }
 $receiver = Start-RestrictedProcess 'python' @('scripts/github_webhook_bridge.py') $workspace $receiverSettings
 $relay = Start-RestrictedProcess 'npx.cmd' @('--yes', 'smee-client', '--url', $settings['LLM_TRAVEL_SMEE_URL'], '--target', 'http://127.0.0.1:8766/github-webhook') $workspace @{}
 @{ receiver_pid = $receiver.Id; relay_pid = $relay.Id; target = 'http://127.0.0.1:8766/github-webhook' } | ConvertTo-Json -Compress

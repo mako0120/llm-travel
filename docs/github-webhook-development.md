@@ -7,8 +7,10 @@
 1. `X-Hub-Signature-256` が `LLM_TRAVEL_WEBHOOK_SECRET` で検証できる。
 2. リポジトリが `mako0120/llm-travel` である。
 3. `issue_comment` の `created` イベントである。
-4. 本文に `Claude → Codex`、`agent="claude"`、または JSON の `{"agent":"claude"}` がある。
-5. コメント投稿者が `LLM_TRAVEL_WEBHOOK_ALLOWED_LOGINS` に含まれる。
+4. コメント投稿者が `LLM_TRAVEL_CLAUDE_LOGINS` に含まれる場合は、本文マーカーなしでClaude由来として受理する。
+5. それ以外は、投稿者が `LLM_TRAVEL_WEBHOOK_ALLOWED_LOGINS` に含まれ、かつ本文に `Claude → Codex`、`agent="claude"`、または JSON の `{"agent":"claude"}` がある場合だけ受理する。
+
+Claude投稿者の既定値は、現在PRコメントでClaudeレビュー元として確認できる `longshixiaolin8-max` です。投稿元が変わった場合は `LLM_TRAVEL_CLAUDE_LOGINS` をカンマ区切りで更新します。本文だけから任意の投稿者をClaude扱いにはしません。
 
 合格したイベントは `data/webhook-inbox` に JSON として保存されます。`CODEX_WEBHOOK_AUTORUN=1` のときだけ、固定の安全プロンプトで `codex exec` を別 worktree に起動します。コメント本文は設計入力として渡すだけで、シェルとして実行しません。自動マージ、デプロイ、秘密情報変更はプロンプトで禁止されています。
 
@@ -18,6 +20,8 @@
 
 ```powershell
 $env:LLM_TRAVEL_WEBHOOK_SECRET = "your-long-random-secret"
+$env:LLM_TRAVEL_WEBHOOK_ALLOWED_LOGINS = "mako0120"
+$env:LLM_TRAVEL_CLAUDE_LOGINS = "longshixiaolin8-max"
 $env:LLM_TRAVEL_WORKSPACE = (Get-Location).Path
 python scripts/github_webhook_bridge.py
 ```
