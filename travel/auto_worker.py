@@ -35,6 +35,13 @@ from travel.free_sources import collect_public_evidence
 _SUBPROCESS_FAILURE_TYPES = (RuntimeError, ValueError, subprocess.SubprocessError, OSError)
 
 
+def _finish(repo, run_id, outcome, reason, **details):
+    """Persist only the bounded status fields intended for operator-facing UI."""
+    summary = {"run_id": run_id, "outcome": outcome, "reason": reason, **details}
+    repo.record_auto_worker_result(run_id, summary)
+    return summary
+
+
 def auto_research_enabled(environment=None):
     """The worker may run only when explicitly opted in and never in commercial mode."""
     source = os.environ if environment is None else environment
@@ -64,11 +71,11 @@ def process_pending_run(repo, run, workspace, codex_runner=subprocess.run, claud
     cannot both process (and pay to process) the same run.
     """
     if not repo.claim_research_run(run["id"]):
-        return {"run_id": run["id"], "outcome": "skipped", "reason": "already claimed by another worker instance"}
+        return _finish(repo, run["id"], "skipped", "already claimed by another worker instance")
 
     destination = run["requirements"].get("destination")
     if not isinstance(destination, str) or not destination.strip():
-        return {"run_id": run["id"], "outcome": "skipped", "reason": "requirements.destination is missing"}
+        return _finish(repo, run["id"], "skipped", "requirements.destination is missing")
 
     _, candidates = collect_public_evidence(destination)
     saved = []
@@ -80,7 +87,7 @@ def process_pending_run(repo, run, workspace, codex_runner=subprocess.run, claud
     if not saved:
         # The claim above already moved this run out of "requested", so it
         # will not be picked up and retried again on every future poll.
-        return {"run_id": run["id"], "outcome": "unresolved", "reason": "no usable public evidence was found"}
+        return _finish(repo, run["id"], "unresolved", "no usable public evidence was found")
 
     current = repo.get_research_run(run["id"])
     brief = build_research_brief(run["requirements"], current["evidence"])
@@ -88,8 +95,8 @@ def process_pending_run(repo, run, workspace, codex_runner=subprocess.run, claud
     try:
         codex_result = run_codex_proposal(brief, workspace, runner=codex_runner)
     except _SUBPROCESS_FAILURE_TYPES as exc:
-        return {"run_id": run["id"], "outcome": "unresolved", "reason": f"codex proposal unavailable: {exc}",
-                "evidence_collected": len(saved)}
+        return _finish(repo, run["id"], "unresolved", f"codex proposal unavailable: {exc}",
+                       evidence_collected=len(saved))
     proposal_text = codex_result["proposal"]
 
     try:
@@ -97,25 +104,30 @@ def process_pending_run(repo, run, workspace, codex_runner=subprocess.run, claud
     except json.JSONDecodeError:
         parsed_proposal = None
     if isinstance(parsed_proposal, dict) and parsed_proposal.get("state") == "needs_research":
-        return {"run_id": run["id"], "outcome": "unresolved", "reason": "codex reported needs_research",
-                "missing_evidence": parsed_proposal.get("missing_evidence", []), "evidence_collected": len(saved)}
+        return _finish(repo, run["id"], "unresolved", "codex reported needs_research",
+                       missing_evidence=parsed_proposal.get("missing_evidence", []),
+                       evidence_collected=len(saved))
 
     try:
         review = run_claude_review(proposal_text, brief, runner=claude_runner)
     except _SUBPROCESS_FAILURE_TYPES as exc:
-        return {"run_id": run["id"], "outcome": "unresolved", "reason": f"claude review unavailable: {exc}",
-                "evidence_collected": len(saved)}
+        return _finish(repo, run["id"], "unresolved", f"claude review unavailable: {exc}",
+                       evidence_collected=len(saved))
 
     decision = review["review"]["decision"]
     if decision != "approved":
-        return {"run_id": run["id"], "outcome": "unresolved", "reason": "claude requested revision",
-                "required_evidence": review["review"].get("required_evidence", []), "evidence_collected": len(saved)}
+        return _finish(repo, run["id"], "unresolved", "claude requested revision",
+                       required_evidence=review["review"].get("required_evidence", []),
+                       evidence_collected=len(saved))
 
     # Only public/unverified evidence is available through this path, so
     # record_itinerary_proposal (which requires fresh *verified* evidence)
     # cannot and must not be called here even on approval. A human or Codex,
     # working from an official source, must still finish a savable itinerary.
-    return {"run_id": run["id"], "outcome": "reviewed_not_saved", "evidence_collected": len(saved),
-            "reason": "Claude approved how the proposal used the supplied evidence, but it remains unverified, "
-                      "so no confirmed itinerary was saved. See /api/workspace/runs/{id}/draft for a visible draft.",
-            "codex_executed_at": codex_result["executed_at"], "claude_executed_at": review["executed_at"]}
+    return _finish(
+        repo, run["id"], "reviewed_not_saved",
+        "Claude approved how the proposal used the supplied evidence, but it remains unverified, "
+        "so no confirmed itinerary was saved. See /api/workspace/runs/{id}/draft for a visible draft.",
+        evidence_collected=len(saved), codex_executed_at=codex_result["executed_at"],
+        claude_executed_at=review["executed_at"],
+    )
