@@ -1,0 +1,23 @@
+:root{
+  --primary:#3157f6;--blue:#3157f6;--primary-dark:#2342c8;--ink:#17233c;--muted:#6f7b91;
+  --line:#dce4f2;--soft:#f6f8fc;--green:#17a673;--warn:#e99a28;--red:#df5c64;
+  font-family:"Noto Sans JP","Yu Gothic UI","Hiragino Kaku Gothic ProN",system-ui,sans-serif;
+}
+html{background:#f7f9fc}body{color:var(--ink);background:#f7f9fc}
+button,input,select,textarea{font:inherit}button,a{transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease,transform .15s ease}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #9fb2ff;outline-offset:2px}
+.logo,.brand,.entry-brand{letter-spacing:.01em}.logo b,.brand b,.entry-brand b{color:var(--primary)}
+.primary,.travia-primary{background:linear-gradient(135deg,var(--primary),#4873ff)!important;border-color:var(--primary)!important;color:#fff!important}
+.primary:hover,.travia-primary:hover{box-shadow:0 8px 22px #3157f633;transform:translateY(-1px)}
+.card,.form-card,.draft-card,.notice-card,.section,.comparison,.evidence-summary{border-color:var(--line)!important;box-shadow:0 8px 28px rgba(31,53,99,.055)}
+.chip.verified,.chip.approved{background:#dcf7ed;color:#087a58}.chip.unverified{background:#edf1f7;color:#617087}
+.entry-redirect{min-height:100vh;display:grid;place-items:center;margin:0;padding:24px}
+.entry-card{width:min(520px,100%);padding:34px;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 22px 70px rgba(30,55,105,.1);text-align:center}
+.entry-brand{display:flex;justify-content:center;gap:10px;align-items:center;font-size:24px;font-weight:900}.entry-brand b{font-size:34px}.entry-brand small{display:block;font-size:11px;color:var(--muted);font-weight:600}
+.entry-card h1{margin:24px 0 8px}.entry-card p{color:var(--muted);margin:0 0 22px}.travia-primary{display:inline-block;text-decoration:none;padding:12px 24px;border-radius:10px;font-weight:800}
+.auto-worker-card{border-left:4px solid #8aa1d9!important}.auto-worker-card.status-reviewed{border-left-color:var(--green)!important}.auto-worker-card.status-unresolved{border-left-color:var(--warn)!important}.auto-worker-card.status-skipped{border-left-color:#8793a8!important}
+.auto-worker-head{display:flex;align-items:start;justify-content:space-between;gap:16px}.auto-worker-head h2{margin:0 0 5px}.auto-worker-head p{margin:0;color:var(--muted);font-size:12px}.worker-state{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;font-size:11px;font-weight:900;background:#edf2ff;color:#3550bc}
+.worker-state.reviewed{background:#dcf7ed;color:#087a58}.worker-state.unresolved{background:#fff0d4;color:#9a5e07}.worker-state.skipped{background:#edf1f7;color:#59667d}
+.worker-missing{margin:10px 0 0;padding:11px 13px;background:#fffaf0;border:1px solid #f2d59c;border-radius:9px}.worker-missing b{display:block;margin-bottom:6px}.worker-missing ul{margin:0;padding-left:20px}
+.worker-note{margin:10px 0 0;color:var(--muted);font-size:11px}.worker-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+@media(max-width:850px){.auto-worker-head{display:grid}.entry-card{padding:26px 20px}}
