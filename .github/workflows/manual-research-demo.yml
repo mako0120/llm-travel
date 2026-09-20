@@ -1,0 +1,28 @@
+name: Manual free-source research demo
+on:
+  workflow_dispatch:
+    inputs:
+      destination:
+        description: "Destination to research (e.g. 京都)"
+        required: true
+        default: "京都"
+      nights:
+        description: "Number of nights"
+        required: false
+        default: "2"
+permissions:
+  contents: read
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - run: python scripts/run_free_research_demo.py "${{ inputs.destination }}" --nights "${{ inputs.nights }}" --out out
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: research-demo-${{ inputs.destination }}
+          path: out/
+          if-no-files-found: error

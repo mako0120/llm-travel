@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>調査中 | TRAVIA</title>
+<link rel="stylesheet" href="travia.css">
+<style>
+  .gen-wrap{max-width:560px;margin:60px auto;text-align:center}
+  .gen-wrap h1{font-size:22px;margin-bottom:8px}
+  .gen-wrap p{color:var(--sub-text);font-size:13px;margin-bottom:36px}
+  .spinner-ring{width:64px;height:64px;border-radius:50%;border:5px solid var(--tint-blue);border-top-color:var(--primary);margin:0 auto 26px;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .gen-card{text-align:left;padding:22px 26px}
+  .src-note{margin-top:18px;font-size:12px;color:var(--sub-text);text-align:center}
+</style>
+</head>
+<body>
+<div style="background:#17233C;color:#fff;font-size:12px;font-weight:600;text-align:center;padding:6px 10px" class="demo-banner">TRAVIA UI 静的デモ &mdash; バックエンド未接続・保存機能なし(画面イメージの確認用)</div>
+<div class="app-shell">
+  <aside class="side">
+    <a class="logo"><i>T</i>TRAVIA</a>
+    <button class="new-trip">＋ 新しい旅行をつくる</button>
+    <nav>
+      <a href="home.html">⌂ ホーム</a>
+      <a class="active" href="planner.html">✦ AI旅行プランナー</a>
+      <a href="itinerary.html">▤ 旅程を見る</a>
+      <a href="#">⌕ 情報収集</a>
+      <a href="double-check.html">◈ AIダブルチェック</a>
+      <a href="history.html">▥ 改善履歴</a>
+      <a href="public-list.html">♧ 公開プラン一覧</a>
+    </nav>
+    <div class="footer-nav"><a href="settings.html">⚙ 設定</a><a href="#">? ヘルプ</a></div>
+  </aside>
+  <div class="main">
+    <div class="topbar"><div class="search">⌕ 検索</div><div class="spacer"></div><div class="avatar">U</div></div>
+    <div class="content">
+      <div class="gen-wrap">
+        <div class="spinner-ring"></div>
+        <h1>あなたの旅を調べています</h1>
+        <p>京都 2泊3日・歴史/グルメ/カフェ巡りの候補を確認中です</p>
+
+        <div class="card gen-card">
+          <div class="progress-list">
+            <div class="progress-item done"><span class="dot">✓</span>行き先を確認</div>
+            <div class="progress-item done"><span class="dot">✓</span>観光候補を収集</div>
+            <div class="progress-item done"><span class="dot">✓</span>天気を確認</div>
+            <div class="progress-item done"><span class="dot">✓</span>カフェ・グルメ候補を検索</div>
+            <div class="progress-item active"><span class="dot">●</span>移動ルートを確認中</div>
+            <div class="progress-item"><span class="dot">○</span>営業時間・料金確認</div>
+            <div class="progress-item"><span class="dot">○</span>AIダブルチェック</div>
+            <div class="progress-item"><span class="dot">○</span>旅程最適化</div>
+          </div>
+        </div>
+        <p class="src-note">現在 21件の情報源を確認しています</p>
+        <div style="margin-top:22px"><a class="btn btn-secondary" href="research-status.html">確認中の情報を見る</a></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

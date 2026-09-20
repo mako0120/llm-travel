@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AIダブルチェック | TRAVIA</title>
+<link rel="stylesheet" href="travia.css">
+<style>
+  .reviewer-card{padding:20px}
+  .reviewer-card .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+  .reviewer-card .head b{font-size:15px}
+  .check-list{display:flex;flex-direction:column;gap:10px}
+  .check-item{display:flex;align-items:center;gap:9px;font-size:13px}
+  .check-item i{color:var(--verified);font-style:normal;width:16px}
+  .cat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:20px}
+  .cat-tile{padding:14px;text-align:center;font-size:12px;font-weight:700;color:var(--sub-text)}
+</style>
+</head>
+<body>
+<div style="background:#17233C;color:#fff;font-size:12px;font-weight:600;text-align:center;padding:6px 10px" class="demo-banner">TRAVIA UI 静的デモ &mdash; バックエンド未接続・保存機能なし(画面イメージの確認用)</div>
+<div class="app-shell">
+  <aside class="side">
+    <a class="logo"><i>T</i>TRAVIA</a>
+    <button class="new-trip">＋ 新しい旅行をつくる</button>
+    <nav>
+      <a href="home.html">⌂ ホーム</a>
+      <a href="planner.html">✦ AI旅行プランナー</a>
+      <a href="itinerary.html">▤ 旅程を見る</a>
+      <a href="#">⌕ 情報収集</a>
+      <a class="active" href="double-check.html">◈ AIダブルチェック</a>
+      <a href="history.html">▥ 改善履歴</a>
+      <a href="public-list.html">♧ 公開プラン一覧</a>
+    </nav>
+    <div class="footer-nav"><a href="settings.html">⚙ 設定</a><a href="#">? ヘルプ</a></div>
+  </aside>
+  <div class="main">
+    <div class="topbar"><div class="search">⌕ 検索</div><div class="spacer"></div><div class="avatar">U</div></div>
+    <div class="content">
+      <div class="page-head"><h1>AIダブルチェック</h1><p>2つの独立したAIが、それぞれ別の観点から旅程を確認します</p></div>
+
+      <div class="grid-2">
+        <div class="card reviewer-card">
+          <div class="head"><b>Planner AI</b><span class="status verified">✓ 承認済み</span></div>
+          <div class="check-list">
+            <div class="check-item"><i>✓</i>旅程整合性</div>
+            <div class="check-item"><i>✓</i>予算</div>
+            <div class="check-item"><i>✓</i>移動時間</div>
+            <div class="check-item"><i>✓</i>食事</div>
+            <div class="check-item"><i>✓</i>代案</div>
+          </div>
+        </div>
+        <div class="card reviewer-card">
+          <div class="head"><b>Independent Review</b><span class="status verified">✓ 承認済み</span></div>
+          <div class="check-list">
+            <div class="check-item"><i>✓</i>情報精度</div>
+            <div class="check-item"><i>✓</i>根拠</div>
+            <div class="check-item"><i>✓</i>不足情報</div>
+            <div class="check-item"><i>✓</i>ハルシネーション</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="page-head" style="margin-top:28px"><h1 style="font-size:16px">情報確認</h1></div>
+      <div class="grid-3" style="margin-bottom:10px">
+        <div class="card stat-tile" style="text-align:center"><span class="n" style="color:var(--verified)">18件</span><span class="l">確認済み</span></div>
+        <div class="card stat-tile" style="text-align:center"><span class="n" style="color:var(--researching)">3件</span><span class="l">確認中</span></div>
+        <div class="card stat-tile" style="text-align:center"><span class="n" style="color:var(--warning)">1件</span><span class="l">再確認必要</span></div>
+      </div>
+
+      <div class="cat-grid">
+        <div class="card cat-tile">営業時間</div>
+        <div class="card cat-tile">交通</div>
+        <div class="card cat-tile">料金</div>
+        <div class="card cat-tile">天気</div>
+        <div class="card cat-tile">ホテル</div>
+        <div class="card cat-tile">レストラン</div>
+      </div>
+
+      <div style="margin-top:20px"><a class="btn btn-secondary" href="evidence.html">情報確認状況を詳しく見る →</a></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
