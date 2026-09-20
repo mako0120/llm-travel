@@ -163,5 +163,38 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(remaining[0]["requirements"]["destination"], "Osaka")
 
 
+    def test_auto_worker_results_are_bounded_and_latest(self):
+        run = self.repo.create_research_run("solo-operator", {"destination": "Kyoto"}, [])
+        self.assertIsNone(self.repo.latest_auto_worker_result(run["id"]))
+        first = self.repo.record_auto_worker_result(run["id"], {
+            "outcome": "unresolved",
+            "reason": "needs more evidence",
+            "missing_evidence": ["営業時間"],
+            "evidence_collected": 2,
+            "proposal": "must never be persisted for UI",
+        })
+        self.assertEqual(first["missing_evidence"], ["営業時間"])
+        self.assertNotIn("proposal", first)
+        second = self.repo.record_auto_worker_result(run["id"], {
+            "outcome": "reviewed_not_saved",
+            "reason": "reviewed but unverified",
+            "evidence_collected": 3,
+        })
+        latest = self.repo.latest_auto_worker_result(run["id"])
+        self.assertEqual(latest["id"], second["id"])
+        self.assertEqual(latest["outcome"], "reviewed_not_saved")
+        self.assertEqual(latest["missing_evidence"], [])
+        self.assertNotIn("proposal", latest)
+
+    def test_auto_worker_result_rejects_invalid_status_payloads(self):
+        run = self.repo.create_research_run("solo-operator", {"destination": "Kyoto"}, [])
+        with self.assertRaises(ValueError):
+            self.repo.record_auto_worker_result(run["id"], {"outcome": "approved", "reason": "bad"})
+        with self.assertRaises(ValueError):
+            self.repo.record_auto_worker_result(run["id"], {
+                "outcome": "unresolved", "reason": "bad", "missing_evidence": ["ok", 3],
+            })
+
+
 if __name__ == "__main__":
     unittest.main()

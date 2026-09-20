@@ -15,3 +15,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m unittest discover -v
       - run: python -m evals.run
+      - run: python -m py_compile travel/auto_worker.py travel/storage.py travel/webapp.py
+      - run: node --check web/workspace.js
+      - run: node --check web/workflow.js
+      - run: node --check web/public.js

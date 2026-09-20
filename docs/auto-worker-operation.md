@@ -34,3 +34,17 @@ python scripts/run_auto_research_worker.py --once     # 1回だけ処理して�
 ```
 
 結果は標準出力と、`LLM_TRAVEL_AUTO_WORKER_LOG`で指定したローカルファイル(既定`data/auto_worker_audit.log`)の両方に記録されます。
+
+
+## Web UIでの結果確認
+
+ワーカーはWebサーバーとは別プロセスのままです。各runの直近結果だけをSQLiteの
+`auto_worker_results`へ保存し、Web側は読み取り専用の
+`GET /api/workspace/runs/{id}/auto-worker-status` で確認します。
+
+- `reviewed_not_saved`: AIレビューは通過したが、根拠が未検証なので確定旅程は保存していない。
+- `unresolved`: 追加の根拠が必要。UIには `missing_evidence` / `required_evidence` の項目名だけを表示する。
+- `skipped`: このワーカー実行では処理対象外だった。
+
+APIはワーカーをimport・起動せず、保存済み結果を読むだけです。提案本文や未検証の旅行事実は
+status用レコードへ保存しません。
