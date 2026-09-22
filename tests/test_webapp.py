@@ -72,6 +72,21 @@ class WebAppTests(unittest.TestCase):
             seen, _ = self.post("/api/free-research", payload)
             self.assertEqual(seen[0], "400 Bad Request")
 
+    @patch("travel.webapp.GoogleMapsAdapter")
+    def test_connected_research_uses_environment_key_without_exposing_it(self, adapter):
+        from travel.providers import ProviderResult
+        adapter.return_value.search_places.return_value = ProviderResult(
+            "available", {"places": [{"displayName": {"text": "候補店"}, "googleMapsUri": "https://maps.example/place/1"}]},
+            provider="google_maps")
+        with patch.dict("os.environ", {"GOOGLE_MAPS_API_KEY": "secret-never-returned"}):
+            seen, body = self.post("/api/connected-research", {"destination": "京都"})
+        payload = json.loads(body)
+        self.assertEqual(seen[0], "200 OK")
+        adapter.return_value.search_places.assert_called_once_with("京都 観光 レストラン", max_result_count=10)
+        self.assertEqual(payload["state"], "available")
+        self.assertEqual(payload["evidence"][0]["verification_status"], "unverified")
+        self.assertNotIn("secret-never-returned", body.decode())
+
     def test_cross_site_writes_are_rejected_before_any_api_handler(self):
         seen, body = self.post("/api/free-research", {"destination": "京都"}, {
             "HTTP_ORIGIN": "https://attacker.example", "HTTP_SEC_FETCH_SITE": "cross-site"})

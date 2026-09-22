@@ -7,7 +7,7 @@ from urllib.parse import parse_qs, urlsplit
 from wsgiref.simple_server import make_server
 from travel.storage import Repository, validate_evidence_payload
 from travel.planner import PlannerSession, next_turn, research_request
-from travel.providers import public_provider_catalog
+from travel.providers import GoogleMapsAdapter, google_places_evidence, public_provider_catalog
 from travel.free_sources import collect_public_evidence, public_source_catalog
 from travel.agent_research import agent_web_research_request, validate_agent_web_evidence
 from travel.draft_itinerary import create_research_draft
@@ -153,6 +153,24 @@ def application(environ, start_response):
                          "value": result.value, "version": result.version} for result in results],
             "evidence": evidence,
             "notice": "インターネット上の無料公開情報を検索した候補です。時刻・料金・評価・営業状況は未検証のため旅程には使いません。",
+        })
+    if path == "/api/connected-research" and method == "POST":
+        data = _read_json_body(environ)
+        if not isinstance(data, dict) or not isinstance(data.get("destination"), str):
+            return _bad_request(start_response, "destination must be a string")
+        destination = data["destination"].strip()
+        if not destination or len(destination) > 160:
+            return _bad_request(start_response, "destination must be 1 to 160 characters")
+        # The optional key is read only from the process environment. It is
+        # never accepted from a browser request, stored, returned, or logged.
+        result = GoogleMapsAdapter(os.environ.get("GOOGLE_MAPS_API_KEY")).search_places(
+            f"{destination} 観光 レストラン", max_result_count=10)
+        return _json_response(start_response, {
+            "destination": destination,
+            "provider": "google_maps",
+            "state": result.state,
+            "evidence": google_places_evidence(result),
+            "notice": "Google Maps の候補は取得後も unverified です。評価・営業時間・料金・経路は公式根拠で確認するまで確定しません。",
         })
     if path == "/api/workspace/runs" and method == "POST":
         data = _read_json_body(environ)
