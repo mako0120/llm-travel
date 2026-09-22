@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 from wsgiref.simple_server import make_server
-from travel.storage import Repository
+from travel.storage import Repository, validate_evidence_payload
 from travel.planner import PlannerSession, next_turn, research_request
 from travel.providers import public_provider_catalog
 from travel.free_sources import collect_public_evidence, public_source_catalog
@@ -169,6 +169,24 @@ def application(environ, start_response):
             return _bad_request(start_response, str(exc))
         finally:
             repo.close()
+    if path == "/api/workspace/draft-preview" and method == "POST":
+        data = _read_json_body(environ)
+        requirements = data.get("requirements") if isinstance(data, dict) else None
+        evidence = data.get("evidence") if isinstance(data, dict) else None
+        if not isinstance(requirements, dict) or not isinstance(evidence, list) or not evidence:
+            return _bad_request(start_response, "requirements and one or more evidence candidates are required")
+        if len(evidence) > 20:
+            return _bad_request(start_response, "at most 20 evidence candidates are allowed")
+        try:
+            # A preview is not persisted, so it has no database evidence ids.
+            # Add transient references only for rendering; no travel fact is
+            # created and the values never enter SQLite.
+            safe_candidates = [dict(validate_evidence_payload(item), id=f"preview-{index}")
+                               for index, item in enumerate(evidence, start=1)]
+            return _json_response(start_response, {"draft": create_research_draft(requirements, safe_candidates),
+                                                   "persistence": "preview_only"})
+        except ValueError as exc:
+            return _bad_request(start_response, str(exc))
     if path.startswith("/api/workspace/runs/") and path.endswith("/auto-worker-status") and method == "GET":
         run_id = path.removeprefix("/api/workspace/runs/").removesuffix("/auto-worker-status").strip("/")
         if not run_id:

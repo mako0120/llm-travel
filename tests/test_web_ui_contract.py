@@ -28,6 +28,7 @@ class UnifiedWebUiContractTests(unittest.TestCase):
         self.assertIn("Webサーバーは自動ワーカーを起動せず", workflow)
         self.assertIn("自動生成した旅程下書き", workflow)
         self.assertIn("assistant-draft", workflow)
+        self.assertIn("/api/workspace/draft-preview", workflow)
 
     def test_shared_theme_has_mobile_and_worker_status_styles(self):
         theme = (ROOT / "web" / "theme.css").read_text(encoding="utf-8")

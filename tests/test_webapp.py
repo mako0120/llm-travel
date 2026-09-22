@@ -138,6 +138,17 @@ class WebAppTests(unittest.TestCase):
             _,body=self.post('/api/planner',{'session_id':session,'message':answer})
         self.assertEqual(json.loads(body)['research']['state'],'requested')
 
+    def test_draft_preview_validates_candidates_without_persisting_them(self):
+        candidate = {"agent": "provider", "source_type": "Wikimedia", "url": "https://example.test/spot",
+                     "title": "検証前の候補", "facts": {}, "retrieved_at": "2030-01-01T00:00:00Z",
+                     "expires_at": "2030-01-02T00:00:00Z", "verification_status": "unverified"}
+        seen, body = self.post("/api/workspace/draft-preview", {"requirements": {"destination": "京都", "nights": 1}, "evidence": [candidate]})
+        payload = json.loads(body)
+        self.assertEqual(seen[0], "200 OK")
+        self.assertEqual(payload["persistence"], "preview_only")
+        self.assertEqual(payload["draft"]["status"], "needs_research")
+        self.assertEqual(payload["draft"]["days"][0]["time"], "未確定")
+
     def test_path_traversal_outside_web_root_is_rejected(self):
         for path in ['/../CLAUDE.md', '/../../CLAUDE.md', '/../AGENTS.md']:
             seen, _ = self.request(path)
