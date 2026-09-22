@@ -29,6 +29,8 @@ class UnifiedWebUiContractTests(unittest.TestCase):
         self.assertIn("自動生成した旅程下書き", workflow)
         self.assertIn("assistant-draft", workflow)
         self.assertIn("/api/workspace/draft-preview", workflow)
+        self.assertIn("インターネット検索済みの公開候補", workflow)
+        self.assertIn("インターネット上の無料公開情報を検索しています", workflow)
 
     def test_shared_theme_has_mobile_and_worker_status_styles(self):
         theme = (ROOT / "web" / "theme.css").read_text(encoding="utf-8")

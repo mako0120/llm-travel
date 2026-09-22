@@ -148,10 +148,11 @@ def application(environ, start_response):
         results, evidence = collect_public_evidence(destination)
         return _json_response(start_response, {
             "destination": destination,
+            "search_mode": "live_public_web",
             "results": [{"provider": result.provider, "state": result.state,
                          "value": result.value, "version": result.version} for result in results],
             "evidence": evidence,
-            "notice": "公開情報の候補です。時刻・料金・評価・営業状況は未検証のため旅程には使いません。",
+            "notice": "インターネット上の無料公開情報を検索した候補です。時刻・料金・評価・営業状況は未検証のため旅程には使いません。",
         })
     if path == "/api/workspace/runs" and method == "POST":
         data = _read_json_body(environ)

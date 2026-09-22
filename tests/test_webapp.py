@@ -59,6 +59,7 @@ class WebAppTests(unittest.TestCase):
         payload = json.loads(body)
         self.assertEqual(seen[0], "200 OK")
         self.assertEqual(payload["destination"], "京都")
+        self.assertEqual(payload["search_mode"], "live_public_web")
         self.assertEqual(len(payload["results"]), 3)
         self.assertTrue(payload["evidence"])
         self.assertTrue(all(item["verification_status"] == "unverified" for item in payload["evidence"]))
