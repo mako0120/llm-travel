@@ -63,7 +63,7 @@ class WebAppTests(unittest.TestCase):
         self.assertTrue(payload["evidence"])
         self.assertTrue(all(item["verification_status"] == "unverified" for item in payload["evidence"]))
         nominatim.return_value.search_destination.assert_called_once_with("京都")
-        wikimedia.return_value.search_destination.assert_called_once_with("京都")
+        wikimedia.return_value.search_destination.assert_called_once_with("京都 観光名所")
         open_meteo.return_value.forecast.assert_called_once_with(35.0, 135.0)
 
     def test_free_research_rejects_missing_or_oversized_destination(self):

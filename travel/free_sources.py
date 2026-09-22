@@ -211,7 +211,10 @@ def collect_public_evidence(destination, nominatim=None, wikimedia=None, open_me
     wikimedia = wikimedia or WikimediaAdapter()
     open_meteo = open_meteo or OpenMeteoAdapter()
     geocode = nominatim.search_destination(destination)
-    results = [geocode, wikimedia.search_destination(destination)]
+    # The raw destination query tends to return municipalities and agencies.
+    # A single scoped discovery query is still bounded, but produces leads that
+    # are more useful for a travel-planning draft. It remains unverified.
+    results = [geocode, wikimedia.search_destination(f"{destination.strip()} 観光名所")]
     if geocode.state == "available" and geocode.value and isinstance(geocode.value[0], dict):
         place = geocode.value[0]
         try:

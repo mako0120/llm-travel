@@ -31,6 +31,21 @@ def create_research_draft(requirements, evidence):
                                "source": str(item.get("source_type", "候補情報"))})
     if not candidates:
         raise ValueError("evidence needs titles and ids")
+    # Prefer named discovery leads over broad areas or operators.  The fallback
+    # preserves a visible research draft when a small destination has no such
+    # result, while keeping every entry tied to its original evidence.
+    generic_suffixes = ("市", "区", "府", "都", "県")
+    generic_terms = ("交通局", "観光協会", "観光案内")
+    generic_titles = {"観光", "観光地", "旅行", "日本"}
+    discovery = [candidate for candidate in candidates if candidate["source"] == "Wikimedia"]
+    specific = [candidate for candidate in discovery
+                if not candidate["title"].endswith(generic_suffixes)
+                and not any(term in candidate["title"] for term in generic_terms)]
+    specific = [candidate for candidate in specific if candidate["title"] not in generic_titles]
+    if specific:
+        candidates = specific
+    elif discovery:
+        candidates = discovery
     itinerary_days = []
     for number in range(1, days + 1):
         candidate = candidates[(number - 1) % len(candidates)]

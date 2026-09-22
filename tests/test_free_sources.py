@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import unittest
 
-from travel.free_sources import NominatimAdapter, NominatimRateLimiter, OpenMeteoAdapter, WikimediaAdapter, public_result_evidence, public_source_catalog
+from travel.free_sources import NominatimAdapter, NominatimRateLimiter, OpenMeteoAdapter, WikimediaAdapter, collect_public_evidence, public_result_evidence, public_source_catalog
 from travel.providers import ProviderResult
 
 
@@ -58,3 +58,13 @@ class FreeSourcesTests(unittest.TestCase):
         evidence = public_result_evidence(result, NOW)
         self.assertEqual(evidence[0]["verification_status"], "unverified")
         self.assertIn("Forecast", evidence[0]["source_type"])
+
+    def test_collection_uses_one_scoped_discovery_query(self):
+        calls = []
+        geo = NominatimAdapter(lambda _url: [{"display_name": "京都", "osm_type": "relation", "osm_id": 1, "lat": "35", "lon": "135"}])
+        wiki = WikimediaAdapter(lambda url: calls.append(url) or {"pages": []})
+        weather = OpenMeteoAdapter(lambda _url: {"timezone": "Asia/Tokyo", "hourly": {"time": []}})
+        _, evidence = collect_public_evidence("京都", nominatim=geo, wikimedia=wiki, open_meteo=weather)
+        self.assertEqual(len(calls), 1)
+        self.assertIn("%E8%A6%B3%E5%85%89%E5%90%8D%E6%89%80", calls[0])
+        self.assertTrue(all(item["verification_status"] == "unverified" for item in evidence))
