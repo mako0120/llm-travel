@@ -31,9 +31,12 @@
 export LLM_TRAVEL_AUTO_RESEARCH=1
 python scripts/run_auto_research_worker.py            # 常駐して定期的に処理
 python scripts/run_auto_research_worker.py --once     # 1回だけ処理して終了
+python scripts/run_auto_research_worker.py --once --run-id <research-run-id>  # 指定した会話だけ処理
 ```
 
 結果は標準出力と、`LLM_TRAVEL_AUTO_WORKER_LOG`で指定したローカルファイル(既定`data/auto_worker_audit.log`)の両方に記録されます。
+
+画面の会話から生成された run だけを処理する場合は、表示される run ID を `--run-id` に渡してください。過去の待機 run をまとめて処理しないため、会話中の旅程生成にはこの指定を推奨します。
 
 
 ## Web UIでの結果確認

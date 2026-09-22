@@ -43,6 +43,17 @@ class RunOnceTests(unittest.TestCase):
             summaries = worker_script.run_once(self.repo, Path("."))
         self.assertEqual(len(summaries), 1)
 
+    def test_run_id_processes_only_the_requested_pending_run(self):
+        first = self.repo.create_research_run("solo-operator", {"destination": "京都"}, [])
+        second = self.repo.create_research_run("solo-operator", {"destination": "東京"}, [])
+        with patch("run_auto_research_worker.process_pending_run",
+                   return_value={"run_id": first["id"], "outcome": "skipped", "reason": "done"}) as process:
+            summaries = worker_script.run_once(self.repo, Path("."), run_id=first["id"])
+        self.assertEqual(len(summaries), 1)
+        process.assert_called_once()
+        self.assertEqual(process.call_args.args[1]["id"], first["id"])
+        self.assertEqual(self.repo.get_research_run(second["id"])["state"], "requested")
+
 
 class MainGatingTests(unittest.TestCase):
     def test_main_refuses_to_run_without_explicit_opt_in(self):
@@ -59,6 +70,10 @@ class MainGatingTests(unittest.TestCase):
                    "LLM_TRAVEL_AUTO_WORKER_LOG": str(Path(tmp) / "audit.log")}
             with patch.dict("os.environ", env, clear=True):
                 self.assertEqual(worker_script.main(["--once"]), 0)
+
+    def test_main_rejects_a_missing_run_id_value(self):
+        with patch.dict("os.environ", {"LLM_TRAVEL_AUTO_RESEARCH": "1"}, clear=True):
+            self.assertEqual(worker_script.main(["--once", "--run-id"]), 1)
 
     def test_main_never_reads_a_github_token_environment_variable(self):
         source = MODULE.read_text(encoding="utf-8")

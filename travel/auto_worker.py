@@ -35,6 +35,36 @@ from travel.free_sources import collect_public_evidence
 _SUBPROCESS_FAILURE_TYPES = (RuntimeError, ValueError, subprocess.SubprocessError, OSError)
 
 
+def _evidence_requirement_labels(value):
+    """Project an agent's optional requirement details into safe UI labels.
+
+    Agent JSON is untrusted.  The SQLite status record intentionally accepts
+    only a list of short strings, while some CLI responses return either one
+    string or structured entries such as ``{"field": "official_timetable"}``.
+    Keep only a named field from a small allowlist; unknown shapes are omitted
+    and the enclosing ``needs_research`` outcome remains truthful.
+    """
+    if isinstance(value, str):
+        values = [value]
+    elif isinstance(value, list):
+        values = value
+    else:
+        return []
+    labels = []
+    for item in values:
+        if isinstance(item, str):
+            candidate = item.strip()
+        elif isinstance(item, dict):
+            candidate = next((item.get(key) for key in ("field", "category", "name", "type")
+                              if isinstance(item.get(key), str)), "")
+            candidate = candidate.strip()
+        else:
+            candidate = ""
+        if candidate and candidate not in labels:
+            labels.append(candidate[:160])
+    return labels
+
+
 def _finish(repo, run_id, outcome, reason, **details):
     """Persist only the bounded status fields intended for operator-facing UI."""
     summary = {"run_id": run_id, "outcome": outcome, "reason": reason, **details}
@@ -105,7 +135,7 @@ def process_pending_run(repo, run, workspace, codex_runner=subprocess.run, claud
         parsed_proposal = None
     if isinstance(parsed_proposal, dict) and parsed_proposal.get("state") == "needs_research":
         return _finish(repo, run["id"], "unresolved", "codex reported needs_research",
-                       missing_evidence=parsed_proposal.get("missing_evidence", []),
+                       missing_evidence=_evidence_requirement_labels(parsed_proposal.get("missing_evidence")),
                        evidence_collected=len(saved))
 
     try:
@@ -117,7 +147,7 @@ def process_pending_run(repo, run, workspace, codex_runner=subprocess.run, claud
     decision = review["review"]["decision"]
     if decision != "approved":
         return _finish(repo, run["id"], "unresolved", "claude requested revision",
-                       required_evidence=review["review"].get("required_evidence", []),
+                       required_evidence=_evidence_requirement_labels(review["review"].get("required_evidence")),
                        evidence_collected=len(saved))
 
     # Only public/unverified evidence is available through this path, so

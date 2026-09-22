@@ -90,6 +90,18 @@ class ProcessPendingRunTests(unittest.TestCase):
         self.assertEqual(stored["missing_evidence"], ["営業時間"])
 
     @patch("travel.auto_worker.collect_public_evidence")
+    def test_structured_agent_evidence_requirements_are_safely_projected(self, collect):
+        collect.return_value = ([], SAMPLE_EVIDENCE)
+        codex_runner = codex_runner_writing(json.dumps({
+            "state": "needs_research",
+            "missing_evidence": [{"field": "official_timetable", "untrusted": "ignore"}, 42],
+        }))
+        result = process_pending_run(self.repo, self.run, Path("."), codex_runner=codex_runner)
+        self.assertEqual(result["outcome"], "unresolved")
+        self.assertEqual(result["missing_evidence"], ["official_timetable"])
+        self.assertEqual(self.repo.latest_auto_worker_result(self.run["id"])["missing_evidence"], ["official_timetable"])
+
+    @patch("travel.auto_worker.collect_public_evidence")
     def test_unresolved_when_claude_requests_revision(self, collect):
         collect.return_value = ([], SAMPLE_EVIDENCE)
         codex_runner = codex_runner_writing(json.dumps({"days": [{"focus": "京都"}]}))

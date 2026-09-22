@@ -12,7 +12,7 @@ CLI session); that also gives you a chance to redact anything sensitive
 before it becomes public.
 
 Usage:
-  LLM_TRAVEL_AUTO_RESEARCH=1 python scripts/run_auto_research_worker.py [--once]
+  LLM_TRAVEL_AUTO_RESEARCH=1 python scripts/run_auto_research_worker.py [--once] [--run-id RESEARCH_RUN_ID]
 """
 
 import os
@@ -28,10 +28,15 @@ from travel.auto_worker import append_audit_log_entry, auto_research_enabled, pr
 from travel.storage import Repository
 
 
-def run_once(repo, workspace, log_path=None):
-    """Process every currently 'requested' run once. Returns the list of summaries."""
+def run_once(repo, workspace, log_path=None, run_id=None):
+    """Process pending runs once, optionally restricting work to one run id."""
     summaries = []
-    for run in repo.list_research_runs(state="requested"):
+    if run_id is None:
+        pending = repo.list_research_runs(state="requested")
+    else:
+        run = repo.get_research_run(run_id)
+        pending = [run] if run is not None and run["state"] == "requested" else []
+    for run in pending:
         summary = process_pending_run(repo, run, workspace)
         summaries.append(summary)
         if log_path:
@@ -50,13 +55,20 @@ def main(argv=None):
         interval = 60.0
     db_path = os.environ.get("LLM_TRAVEL_DB", "data/travel.sqlite3")
     log_path = os.environ.get("LLM_TRAVEL_AUTO_WORKER_LOG", "data/auto_worker_audit.log")
+    run_id = None
+    if "--run-id" in argv:
+        index = argv.index("--run-id")
+        if index + 1 >= len(argv) or not argv[index + 1].strip():
+            print("--run-id requires a research run id", file=sys.stderr)
+            return 1
+        run_id = argv[index + 1].strip()
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     Path(log_path).parent.mkdir(parents=True, exist_ok=True)
     repo = Repository(db_path)
     try:
         run_forever = "--once" not in argv
         while True:
-            for summary in run_once(repo, PROJECT_ROOT, log_path):
+            for summary in run_once(repo, PROJECT_ROOT, log_path, run_id=run_id):
                 print(summary)
             if not run_forever:
                 break
