@@ -153,6 +153,7 @@ class OpenMeteoAdapter:
             raise ValueError("latitude or longitude is out of range")
         query = urlencode({"latitude": str(latitude), "longitude": str(longitude),
                            "hourly": "temperature_2m,precipitation_probability,weather_code",
+                           "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
                            "forecast_days": "7", "timezone": "Asia/Tokyo"})
         try:
             value = self._transport(f"{OPEN_METEO_FORECAST_URL}?{query}")
@@ -187,9 +188,28 @@ def public_result_evidence(result, retrieved_at=None, freshness_hours=24):
                  "retrieved_at": retrieved, "expires_at": expires, "verification_status": "unverified"}]
     if result.provider == "open_meteo":
         hourly = result.value.get("hourly", {})
+        daily = result.value.get("daily", {})
+        dates = daily.get("time", []) if isinstance(daily, dict) else []
+        high = daily.get("temperature_2m_max", []) if isinstance(daily, dict) else []
+        low = daily.get("temperature_2m_min", []) if isinstance(daily, dict) else []
+        rain = daily.get("precipitation_probability_max", []) if isinstance(daily, dict) else []
+        forecasts = []
+        for index, day in enumerate(dates[:7]):
+            if not isinstance(day, str):
+                continue
+            candidate = {"date": day}
+            if index < len(high) and isinstance(high[index], (int, float)):
+                candidate["temperature_max_c"] = high[index]
+            if index < len(low) and isinstance(low[index], (int, float)):
+                candidate["temperature_min_c"] = low[index]
+            if index < len(rain) and isinstance(rain[index], (int, float)):
+                candidate["precipitation_probability_max"] = rain[index]
+            forecasts.append(candidate)
         return [{"agent": "provider", "source_type": "Open-Meteo Forecast API", "url": "https://open-meteo.com/en/docs",
                  "title": "User-requested weather forecast", "facts": {"timezone": result.value.get("timezone"),
-                 "hourly_variables": sorted(hourly.keys())}, "retrieved_at": retrieved, "expires_at": expires,
+                 "hourly_variables": sorted(hourly.keys()), "daily_forecasts": forecasts,
+                 "forecast_notice": "予報値です。天候の確定情報や旅程の事実として自動採用しません。"},
+                 "retrieved_at": retrieved, "expires_at": expires,
                  "verification_status": "unverified"}]
     evidence = []
     for page in result.value["pages"]:

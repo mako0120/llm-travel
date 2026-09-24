@@ -51,13 +51,23 @@ class FreeSourcesTests(unittest.TestCase):
 
     def test_open_meteo_is_bounded_and_remains_a_forecast_candidate(self):
         called = []
-        adapter = OpenMeteoAdapter(lambda url: called.append(url) or {"timezone": "Asia/Tokyo", "hourly": {"time": []}})
+        adapter = OpenMeteoAdapter(lambda url: called.append(url) or {
+            "timezone": "Asia/Tokyo", "hourly": {"time": []},
+            "daily": {"time": ["2030-01-01"], "temperature_2m_max": [12.5],
+                      "temperature_2m_min": [3.5], "precipitation_probability_max": [40]},
+        })
         result = adapter.forecast(35.0, 135.0)
         self.assertEqual(result.state, "available")
         self.assertIn("forecast_days=7", called[0])
+        self.assertIn("daily=weather_code%2Ctemperature_2m_max", called[0])
         evidence = public_result_evidence(result, NOW)
         self.assertEqual(evidence[0]["verification_status"], "unverified")
         self.assertIn("Forecast", evidence[0]["source_type"])
+        self.assertEqual(evidence[0]["facts"]["daily_forecasts"][0], {
+            "date": "2030-01-01", "temperature_max_c": 12.5,
+            "temperature_min_c": 3.5, "precipitation_probability_max": 40,
+        })
+        self.assertIn("自動採用しません", evidence[0]["facts"]["forecast_notice"])
 
     def test_collection_uses_one_scoped_discovery_query(self):
         calls = []
