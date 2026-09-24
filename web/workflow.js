@@ -162,7 +162,22 @@ function bindReview() {
   const file = document.querySelector('#review-file'); if (file) file.onchange = async event => { const selected = event.target.files && event.target.files[0]; if (!selected) return; try { const result = JSON.parse(await selected.text()); if (!result.chatgpt_codex || !result.claude) throw new Error('Codex と Claude の両方を含む実行結果JSONを選択してください。'); workflow.review = { imported_at: new Date().toISOString(), summary: '手動で読み込んだ実行結果です。検証済み根拠がないため旅程保存はまだできません。' }; workflow.notice = '実行結果をローカル下書きへ読み込みました。'; persistWorkspace(); render('review'); } catch (error) { alert(error.message); } };
 }
 pages.itinerary = () => baseItineraryPage() + '<section class="page workflow-tools"><div class="workflow-status"><b>現在の研究ラン</b><small>' + (workflow.runId || '未作成') + ' / 根拠パケット ' + workflow.packet.length + '件 / ' + (workflow.review ? '実行結果読込済み' : 'レビュー未読込') + '</small></div></section>';
-pages.improve = () => baseImprovementPage() + '<section class="page workflow-tools"><div class="workflow-status"><b>改善対象</b><small>保存済みかつ検証済みの詳細旅程だけが、理由付きの不変バージョンとして改善できます。</small></div></section>';
+function improvementWorkspace() {
+  const draft = workflow.draft;
+  const hasDraft = draft && Array.isArray(draft.days) && draft.days.length;
+  const original = hasDraft ? draft.days.map(day => `<li><b>${esc(day.day)}日目・${esc(day.label)}</b> ${esc(day.focus)}<small>時刻・移動・費用: 未確定</small></li>`).join('') : '<li class="empty">改善対象となる旅程下書きがありません。</li>';
+  return '<section class="page workflow-tools improvement-tools"><section class="card"><h2>改善版を準備する</h2><p>元の旅程は変更しません。改善理由を先に記録し、差分を確認してから新しい版を作成します。</p><div class="revision-columns"><section><header>元の下書き</header><ol>' + original + '</ol></section><section><header>改善候補 <span class="chip candidate">未保存</span></header><ol>' + original + '</ol><p class="empty">実際の時刻・経路・料金を変更するには、対応する公式根拠が必要です。</p></section></div><label class="reason"><b><em>必須</em> 何を、なぜ変えるか</b><textarea id="workflow-improvement-reason" maxlength="1600" placeholder="例：雨天時の代案を追加するため、公式情報を確認して行程を見直します。"></textarea><small>変更理由は改善履歴に残ります。</small></label><div class="actions"><button class="secondary" id="preview-improvement" ' + (hasDraft ? '' : 'disabled') + '>差分を確認</button><button class="primary" id="create-improvement" disabled>改善版を作成</button></div><p id="improvement-status" class="save-block">検証済み根拠とCodex・Claudeの承認済みレビューがそろうまで、改善版の保存はブロックされます。</p></section><section class="card"><h2>再利用ルール</h2><p>旅行者の自由記述フィードバックを根拠にした候補だけを表示します。評価点だけでルールを作成・承認・優先順位付けしません。</p><div class="empty">現在、承認待ちの再利用ルールはありません。</div></section></section>';
+}
+function bindImprovement() {
+  const reason = document.querySelector('#workflow-improvement-reason');
+  const preview = document.querySelector('#preview-improvement');
+  const create = document.querySelector('#create-improvement');
+  const status = document.querySelector('#improvement-status');
+  if (reason) reason.oninput = () => { if (create) create.disabled = !reason.value.trim(); };
+  if (preview) preview.onclick = () => { if (status) status.textContent = '差分を確認しました。変更理由と公式根拠をそろえ、Codex と Claude の独立レビュー後にのみ保存できます。'; };
+  if (create) create.onclick = () => { if (status) status.textContent = '保存はブロック中です。未検証の候補、または承認済みレビュー不足を解消してください。'; };
+}
+pages.improve = () => baseImprovementPage() + improvementWorkspace();
 pages.public = () => basePublicPage() + '<section class="page workflow-tools"><div id="public-api-status" class="workflow-status"><small>公開APIを確認中です。</small></div></section>';
 pages.settings = () => '<section class="page"><h1>設定 / Provider 状態</h1><p class="subtitle">研究モードと商用モードの接続条件を、根拠とともに確認します。</p><section class="card"><table><thead><tr><th>提供元</th><th>研究モード</th><th>商用モード</th></tr></thead><tbody><tr><td>Nominatim</td><td>明示検索・毎秒一件以下</td><td>自己ホストまたは商用接続が必要</td></tr><tr><td>Open-Meteo</td><td>予報候補のみ</td><td>商用ライセンスと専用接続が必要</td></tr><tr><td>Wikimedia</td><td>ライセンス付き調査候補</td><td>帰属とページ単位の利用条件を確認</td></tr><tr><td>GTFS-JP</td><td>事業者公式フィードを選択</td><td>事業者別の利用条件と鮮度を確認</td></tr><tr><td>Google / TikTok / 食べログ</td><td>未設定</td><td>許可済み公式接続のみ</td></tr></tbody></table><p>詳細な根拠と運用条件はリポジトリの <code>docs/provider-operation-policy.md</code> に記録しています。</p></section></section>';
 async function bindPublic() { const target = document.querySelector('#public-api-status'); if (!target) return; try { const data = await requestJson('/api/public/itineraries'); target.innerHTML = '<b>公開API接続済み</b><small>公開済み・検証済みプラン ' + data.itineraries.length + '件。詳細と共有は <a href="public.html">公開プランページ</a> で確認できます。</small>'; } catch (error) { target.textContent = '公開APIを読み込めません: ' + error.message; } }
@@ -175,6 +190,7 @@ render = function (name) {
   if (current === 'research') { void hydrateResearchPacket(); void refreshAutoWorkerStatus(); }
   if (current === 'assistant') { bindAssistant(); void refreshAutoWorkerStatus(); requestAnimationFrame(() => { const latest = document.querySelector('.planner-message:last-of-type, #planner-form, #planner-start-research'); if (latest) latest.scrollIntoView({ block: 'center', behavior: 'smooth' }); }); }
   if (current === 'review') bindReview();
+  if (current === 'improve') bindImprovement();
   if (current === 'public') bindPublic();
   document.querySelectorAll('[data-go]').forEach(button => button.onclick = () => navigate(button.dataset.go));
   document.querySelectorAll('[data-refresh-worker]').forEach(button => button.onclick = async () => { button.disabled = true; workflow.hydratedRunId = null; await refreshAutoWorkerStatus(); if (pageName() === 'research') await hydrateResearchPacket(); button.disabled = false; });
