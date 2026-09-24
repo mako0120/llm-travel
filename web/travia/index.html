@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TRAVIA | 根拠のある、ちゃんと行ける旅。</title>
+<link rel="stylesheet" href="travia.css">
+<style>
+  header.site{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid var(--border)}
+  .site-bar{max-width:1280px;margin:0 auto;display:flex;align-items:center;gap:28px;padding:0 28px;height:68px}
+  .site-bar .logo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:20px;color:var(--primary)}
+  .site-bar .logo i{width:32px;height:32px;border-radius:9px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-style:normal}
+  .site-bar nav{display:flex;gap:22px;font-size:14px;font-weight:600;color:var(--sub-text)}
+  .site-bar .spacer{flex:1}
+  .site-bar .icon-btn{width:36px;height:36px;border-radius:10px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--sub-text)}
+  .site-bar .ghost{padding:9px 16px;border-radius:10px;font-weight:700;font-size:14px;color:var(--text)}
+
+  .hero{position:relative;color:#fff}
+  .hero .photo.hero{border-radius:0}
+  .hero-copy{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:0 0 0 max(28px,calc(50% - 592px))}
+  .hero-copy h1{font-size:44px;line-height:1.3;margin-bottom:14px;text-shadow:0 2px 14px rgba(0,0,0,.25)}
+  .hero-copy p{font-size:16px;max-width:460px;color:#EAF0FF;text-shadow:0 1px 6px rgba(0,0,0,.25)}
+
+  .search-card{
+    max-width:1120px;margin:-46px auto 0;background:#fff;border-radius:20px;box-shadow:0 20px 48px -20px rgba(23,35,60,.28);
+    border:1px solid var(--border);padding:22px 26px;display:flex;gap:14px;align-items:flex-end;position:relative;z-index:2;flex-wrap:wrap;
+  }
+  .field{display:flex;flex-direction:column;gap:6px;flex:1;min-width:200px}
+  .field label{font-size:12px;font-weight:700;color:var(--sub-text)}
+  .field input{border:1px solid var(--border);border-radius:10px;padding:11px 13px;font-size:14px;font-family:inherit}
+  .field input:focus{outline:2px solid var(--primary);outline-offset:1px}
+
+  main.body{max-width:1280px;margin:0 auto;padding:64px 28px 96px}
+  section.block{margin-bottom:72px}
+  .block-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:22px}
+  .block-head h2{font-size:24px}
+  .block-head a{font-size:13px;font-weight:700;color:var(--primary)}
+
+  .feature-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+  .feature{padding:22px;border-radius:var(--radius-lg)}
+  .feature i{width:40px;height:40px;border-radius:11px;background:var(--tint-blue);color:var(--primary);display:flex;align-items:center;justify-content:center;font-style:normal;font-size:18px;margin-bottom:14px}
+  .feature b{display:block;margin-bottom:6px;font-size:15px}
+  .feature p{font-size:13px;color:var(--sub-text);margin:0}
+
+  .dest-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px}
+  .dest-card .photo{min-height:150px;border-radius:var(--radius-lg) var(--radius-lg) 0 0}
+  .dest-card{overflow:hidden;padding:0}
+  .dest-body{padding:14px 16px 16px}
+  .dest-body b{display:block;font-size:14px;margin-bottom:4px}
+  .dest-body .meta{display:flex;justify-content:space-between;font-size:12px;color:var(--sub-text)}
+
+  .season-strip{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:16px}
+  .season-card{position:relative;border-radius:var(--radius-lg);overflow:hidden;min-height:220px;color:#fff}
+  .season-card .photo{position:absolute;inset:0;border-radius:0}
+  .season-card .label{position:relative;padding:18px;font-weight:800;font-size:17px;text-shadow:0 2px 8px rgba(0,0,0,.3)}
+
+  @media (max-width:1000px){
+    .feature-grid,.dest-grid{grid-template-columns:repeat(2,1fr)}
+    .season-strip{grid-template-columns:1fr}
+    .hero-copy{padding-left:20px}
+  }
+</style>
+</head>
+<body>
+<div style="background:#17233C;color:#fff;font-size:12px;font-weight:600;text-align:center;padding:6px 10px" class="demo-banner">TRAVIA UI 静的デモ &mdash; バックエンド未接続・保存機能なし(画面イメージの確認用)</div>
+<header class="site">
+  <div class="site-bar">
+    <a class="logo"><i>T</i>TRAVIA</a>
+    <nav>
+      <a href="#">旅を探す</a>
+      <a href="planner.html">旅を作る</a>
+      <a href="#">モデルコース</a>
+      <a href="#">使い方</a>
+      <a href="#">料金</a>
+    </nav>
+    <div class="spacer"></div>
+    <button class="icon-btn" aria-label="検索">⌕</button>
+    <a class="ghost" href="#">ログイン</a>
+    <button class="btn btn-primary">新規登録</button>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="photo hero"><span></span></div>
+  <div class="hero-copy">
+    <h1>あなただけの、<br>特別な旅を。</h1>
+    <p>AIが、あなたに合った旅行プランを提案。観光・グルメ・カフェ・絶景まで、ぜんぶおまかせ。</p>
+  </div>
+</section>
+
+<div class="search-card">
+  <div class="field">
+    <label>どこに行きますか？</label>
+    <input placeholder="例：京都、箱根、北海道">
+  </div>
+  <div class="field" style="max-width:220px">
+    <label>日程</label>
+    <input placeholder="2026/11/15 〜 11/17">
+  </div>
+  <button class="btn btn-primary" style="white-space:nowrap">旅のプランを作る →</button>
+</div>
+
+<main class="body">
+  <section class="block">
+    <div class="block-head"><h2>TRAVIAの特徴</h2></div>
+    <div class="feature-grid">
+      <div class="card feature"><i>◆</i><b>AIが最適プランを提案</b><p>好み・予算・同行者に合わせて、AIが個別最適化された旅程を作成します。</p></div>
+      <div class="card feature"><i>✓</i><b>信頼できる情報源</b><p>公式情報・複数の情報源で根拠を確認し、鮮度・確認状態を管理します。</p></div>
+      <div class="card feature"><i>♡</i><b>好みに合わせた旅程</b><p>グルメ・カフェ・写真映え・穴場など、テーマに合わせて内容を調整します。</p></div>
+      <div class="card feature"><i>⌘</i><b>地図とルート表示</b><p>移動手段・所要時間を比較し、無理のないルートを組み立てます。</p></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="block-head"><h2>人気旅行先</h2><a href="#">すべて見る →</a></div>
+    <div class="dest-grid">
+      <div class="card dest-card"><div class="photo"><span></span></div><div class="dest-body"><b>京都</b><div class="meta"><span>歴史・文化</span><span>★4.7</span></div></div></div>
+      <div class="card dest-card"><div class="photo alt-1"><span></span></div><div class="dest-body"><b>箱根</b><div class="meta"><span>温泉</span><span>★4.6</span></div></div></div>
+      <div class="card dest-card"><div class="photo alt-2"><span></span></div><div class="dest-body"><b>北海道</b><div class="meta"><span>自然</span><span>★4.8</span></div></div></div>
+      <div class="card dest-card"><div class="photo alt-3"><span></span></div><div class="dest-body"><b>大阪</b><div class="meta"><span>グルメ</span><span>★4.5</span></div></div></div>
+      <div class="card dest-card"><div class="photo"><span></span></div><div class="dest-body"><b>沖縄</b><div class="meta"><span>絶景</span><span>★4.7</span></div></div></div>
+    </div>
+  </section>
+
+  <section class="block" style="margin-bottom:0">
+    <div class="block-head"><h2>季節特集</h2></div>
+    <div class="season-strip">
+      <div class="season-card"><div class="photo alt-2"></div><div class="label">紅葉の京都</div></div>
+      <div class="season-card"><div class="photo alt-1"></div><div class="label">冬の温泉旅</div></div>
+      <div class="season-card"><div class="photo alt-3"></div><div class="label">春の絶景旅</div></div>
+    </div>
+  </section>
+</main>
+</body>
+</html>

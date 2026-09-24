@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ホーム | TRAVIA</title>
+<link rel="stylesheet" href="travia.css">
+<style>
+  .trip-card{overflow:hidden;padding:0;display:flex}
+  .trip-card .photo{width:220px;border-radius:0;flex:0 0 auto}
+  .trip-card .body{padding:18px 22px;flex:1;display:flex;flex-direction:column;gap:10px}
+  .trip-card .body h3{font-size:16px}
+  .trip-card .meta-row{display:flex;gap:14px;font-size:12px;color:var(--sub-text)}
+  .trip-card .tags{display:flex;gap:6px}
+  .trip-card .foot{display:flex;justify-content:space-between;align-items:center;margin-top:auto}
+  .progress-bar{width:140px;height:6px;border-radius:99px;background:var(--border);overflow:hidden}
+  .progress-bar i{display:block;height:100%;background:var(--researching);width:60%}
+  .mini-card{overflow:hidden;padding:0}
+  .mini-card .photo{min-height:110px;border-radius:var(--radius-lg) var(--radius-lg) 0 0}
+  .mini-card .body{padding:12px 14px}
+  .mini-card b{font-size:13px}
+</style>
+</head>
+<body>
+<div style="background:#17233C;color:#fff;font-size:12px;font-weight:600;text-align:center;padding:6px 10px" class="demo-banner">TRAVIA UI 静的デモ &mdash; バックエンド未接続・保存機能なし(画面イメージの確認用)</div>
+<div class="app-shell">
+  <aside class="side">
+    <a class="logo"><i>T</i>TRAVIA</a>
+    <button class="new-trip">＋ 新しい旅行をつくる</button>
+    <nav>
+      <a class="active" href="home.html">⌂ ホーム</a>
+      <a href="request.html">◆ 旅程をリクエスト(本物)</a>
+      <a href="planner.html">✦ AI旅行プランナー</a>
+      <a href="itinerary.html">▤ 旅程を見る</a>
+      <a href="#">⌕ 情報収集</a>
+      <a href="double-check.html">◈ AIダブルチェック</a>
+      <a href="history.html">▥ 改善履歴</a>
+      <a href="public-list.html">♧ 公開プラン一覧</a>
+      <div class="group-label">マイプラン</div>
+      <a href="itinerary.html">京都 ゆったり2泊3日</a>
+      <a href="#">箱根 温泉旅行</a>
+    </nav>
+    <div class="footer-nav">
+      <a href="settings.html">⚙ 設定</a>
+      <a href="#">? ヘルプ</a>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="search">⌕ 検索</div>
+      <div class="spacer"></div>
+      <button class="icon-btn" aria-label="通知">♧</button>
+      <div class="avatar">U</div>
+    </div>
+
+    <div class="content">
+      <div class="page-head">
+        <h1>おかえりなさい</h1>
+        <p>今日はどんな旅を計画しましょう?</p>
+      </div>
+
+      <div class="grid-4" style="margin-bottom:28px">
+        <div class="card stat-tile"><span class="n">5</span><span class="l">作成したプラン</span></div>
+        <div class="card stat-tile"><span class="n">2</span><span class="l">公開したプラン</span></div>
+        <div class="card stat-tile"><span class="n">12</span><span class="l">お気に入り</span></div>
+        <div class="card stat-tile"><span class="n">28</span><span class="l">訪れた場所</span></div>
+      </div>
+
+      <div class="page-head"><h1 style="font-size:17px">最近のプラン</h1></div>
+      <div class="card trip-card" style="margin-bottom:16px">
+        <div class="photo"><span></span></div>
+        <div class="body">
+          <h3>京都 ゆったり2泊3日</h3>
+          <div class="meta-row"><span>2026/11/15〜11/17</span><span>2名</span><span>5〜7万円</span></div>
+          <div class="tags"><span class="tag">歴史・文化</span><span class="tag">グルメ</span><span class="tag">カフェ巡り</span></div>
+          <div class="foot">
+            <div>
+              <span class="status researching">◌ 作成中</span>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+                <div class="progress-bar"><i></i></div><span style="font-size:12px;color:var(--sub-text)">情報収集 60%</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <a class="btn btn-secondary" href="double-check.html">AIチェック</a>
+              <a class="btn btn-primary" href="itinerary.html">詳細旅程</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-bottom:28px">
+        <div class="card trip-card"><div class="photo alt-1"><span></span></div><div class="body"><h3>箱根 温泉旅行</h3><div class="meta-row"><span>2026/12/06〜12/07</span><span>4名</span></div><span class="status verified">✓ 確認済み</span></div></div>
+        <div class="card trip-card"><div class="photo alt-2"><span></span></div><div class="body"><h3>大阪 グルメ旅行</h3><div class="meta-row"><span>2027/01/10〜01/11</span><span>2名</span></div><span class="status researching">◌ 作成中</span></div></div>
+      </div>
+
+      <div class="page-head"><h1 style="font-size:17px">おすすめ旅行先</h1></div>
+      <div class="grid-4" style="margin-bottom:28px">
+        <div class="card mini-card"><div class="photo"><span></span></div><div class="body"><b>箱根</b></div></div>
+        <div class="card mini-card"><div class="photo alt-1"><span></span></div><div class="body"><b>金沢</b></div></div>
+        <div class="card mini-card"><div class="photo alt-2"><span></span></div><div class="body"><b>福岡</b></div></div>
+        <div class="card mini-card"><div class="photo alt-3"><span></span></div><div class="body"><b>札幌</b></div></div>
+      </div>
+
+      <div class="page-head"><h1 style="font-size:17px">季節特集</h1></div>
+      <div class="card" style="overflow:hidden;position:relative;min-height:160px;color:#fff">
+        <div class="photo alt-2" style="position:absolute;inset:0;border-radius:var(--radius-lg)"></div>
+        <div style="position:relative;padding:22px;font-weight:800;font-size:18px;text-shadow:0 2px 8px rgba(0,0,0,.3)">紅葉の京都</div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

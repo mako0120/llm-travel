@@ -50,6 +50,15 @@ def validate_detailed_itinerary(proposal):
         if (not isinstance(item, dict) or any(not _text(item.get(key)) for key in ("name", "convenience", "comfort", "evidence_id"))
                 or not _amount(item.get("nightly_cost"))):
             issues.append(f"lodging_options[{index}] needs name, nightly_cost, convenience, comfort, and evidence_id")
+    if "map_points" in proposal:
+        if not isinstance(proposal["map_points"], list) or not proposal["map_points"]:
+            issues.append("map_points must be a nonempty list when provided")
+        for index, point in enumerate(proposal.get("map_points", [])):
+            if (not isinstance(point, dict) or any(not _text(point.get(key)) for key in ("label", "evidence_id"))
+                    or not isinstance(point.get("latitude"), (int, float)) or isinstance(point.get("latitude"), bool)
+                    or not isinstance(point.get("longitude"), (int, float)) or isinstance(point.get("longitude"), bool)
+                    or not -90 <= point["latitude"] <= 90 or not -180 <= point["longitude"] <= 180):
+                issues.append(f"map_points[{index}] needs label, valid coordinates, and evidence_id")
     return issues
 
 
@@ -58,6 +67,7 @@ def evidence_ids(proposal):
     ids = {item["evidence_id"] for item in proposal["primary"]}
     for field in ("spot_alternatives", "rainy_day_alternatives", "food_options", "lodging_options"):
         ids.update(item["evidence_id"] for item in proposal[field])
+    ids.update(point["evidence_id"] for point in proposal.get("map_points", []))
     return ids
 
 

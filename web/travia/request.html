@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>旅程をリクエスト | TRAVIA</title>
+<link rel="stylesheet" href="travia.css">
+<style>
+  .req-wrap{max-width:640px;margin:0 auto}
+  .field{margin-bottom:18px}
+  .field label{display:block;font-size:13px;font-weight:700;margin-bottom:6px}
+  .field input,.field textarea{width:100%;border:1px solid var(--border);border-radius:10px;padding:11px 13px;font-size:14px;font-family:inherit}
+  .field textarea{resize:vertical;min-height:70px}
+  .how-box{background:var(--tint-blue);border-radius:var(--radius);padding:16px 18px;margin-bottom:24px;font-size:13px;color:var(--primary)}
+  .how-box ol{margin:8px 0 0;padding-left:20px}
+  .step2{margin-top:26px;padding-top:22px;border-top:1px solid var(--border);display:none}
+  .step2.show{display:block}
+  .issue-link{display:inline-block;margin-top:6px}
+</style>
+</head>
+<body>
+<div style="background:#17233C;color:#fff;font-size:12px;font-weight:600;text-align:center;padding:6px 10px" class="demo-banner">TRAVIA UI 静的デモ &mdash; 旅程作成はGitHub Issue経由でClaudeが処理します(個人利用・未検証情報)</div>
+<div class="app-shell">
+  <aside class="side">
+    <a class="logo"><i>T</i>TRAVIA</a>
+    <nav>
+      <a href="home.html">⌂ ホーム</a>
+      <a class="active" href="request.html">✦ 旅程をリクエスト</a>
+      <a href="status.html">◈ ステータス確認</a>
+    </nav>
+  </aside>
+  <div class="main">
+    <div class="topbar"><div class="search">⌕ 検索</div><div class="spacer"></div><div class="avatar">U</div></div>
+    <div class="content">
+      <div class="page-head"><h1>旅程をリクエスト</h1><p>入力内容はGitHub Issueとして投稿され、Claudeが無料公開情報源で調査した未検証の旅程案を返信します。</p></div>
+
+      <div class="req-wrap">
+        <div class="how-box">
+          この仕組みについて:
+          <ol>
+            <li>下のフォームに入力すると、GitHubの「新規Issue作成」画面が開きます(ご自身のGitHubアカウントでログインが必要です)</li>
+            <li>そのままGitHub上でIssueを送信してください(このサイトはGitHubへの書き込み権限を持っていません)</li>
+            <li>Claudeが定期的にIssueを確認し、無料情報源(Nominatim/Wikimedia/Open-Meteo)で調査した旅程案をIssueへコメントで返信します(数分〜1時間程度)</li>
+            <li>結果は<a href="status.html">ステータス確認ページ</a>でIssue番号を入力して確認できます</li>
+          </ol>
+          時刻・料金・営業状況は未確認です。確定旅程ではありません。
+        </div>
+
+        <form id="req-form">
+          <div class="field"><label>行き先</label><input id="destination" required placeholder="例: 京都"></div>
+          <div class="field"><label>宿泊数</label><input id="nights" type="number" min="0" max="30" value="1" required></div>
+          <div class="field"><label>テーマ(任意)</label><input id="themes" placeholder="例: 歴史・文化, グルメ"></div>
+          <div class="field"><label>特別な要望(任意・個人情報は入力しないでください)</label><textarea id="requests"></textarea></div>
+          <button class="btn btn-primary" type="submit">GitHubでリクエストを作成 →</button>
+        </form>
+
+        <div class="step2" id="step2">
+          <p>GitHub側でIssueを送信したら、URL末尾の番号(例: <code>.../issues/<b>123</b></code>)を確認し、下に入力してください。</p>
+          <div class="field"><label>作成されたIssue番号</label><input id="issue-number" type="number" min="1" placeholder="例: 123"></div>
+          <button class="btn btn-secondary" type="button" id="go-status">ステータス確認ページへ →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  const REPO = 'mako0120/llm-travel';
+  document.getElementById('req-form').addEventListener('submit', function (event) {
+    event.preventDefault();
+    const destination = document.getElementById('destination').value.trim();
+    const nights = document.getElementById('nights').value.trim();
+    const themes = document.getElementById('themes').value.trim();
+    const requests = document.getElementById('requests').value.trim();
+    const title = '[TRAVIA旅程リクエスト] ' + destination + ' ' + nights + '泊';
+    const bodyLines = [
+      '## 旅程リクエスト',
+      '',
+      '- 行き先: ' + destination,
+      '- 宿泊数: ' + nights + '泊',
+      '- テーマ: ' + (themes || '(指定なし)'),
+      '- 特別な要望: ' + (requests || '(なし)'),
+      '',
+      '---',
+      'このIssueはTRAVIAサイト(静的デモ)から作成されました。個人利用目的の未検証リクエストです。',
+      'Claudeへ: 無料公開情報源のみで調査し、未検証の旅程案として「## TRAVIA自動旅程案」という見出しでこのIssueにコメント返信してください。'
+    ];
+    const url = 'https://github.com/' + REPO + '/issues/new'
+      + '?title=' + encodeURIComponent(title)
+      + '&body=' + encodeURIComponent(bodyLines.join('\n'))
+      + '&labels=' + encodeURIComponent('travel-request');
+    window.open(url, '_blank');
+    document.getElementById('step2').classList.add('show');
+    document.getElementById('step2').scrollIntoView({ behavior: 'smooth' });
+  });
+  document.getElementById('go-status').addEventListener('click', function () {
+    const n = document.getElementById('issue-number').value.trim();
+    if (!n) { alert('Issue番号を入力してください。'); return; }
+    window.location.href = 'status.html?issue=' + encodeURIComponent(n);
+  });
+</script>
+</body>
+</html>

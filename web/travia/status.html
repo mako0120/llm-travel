@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ステータス確認 | TRAVIA</title>
+<link rel="stylesheet" href="travia.css">
+<style>
+  .stat-wrap{max-width:760px;margin:0 auto}
+  .lookup{display:flex;gap:10px;margin-bottom:22px}
+  .lookup input{flex:1;border:1px solid var(--border);border-radius:10px;padding:11px 13px;font-size:14px;font-family:inherit}
+  .issue-body{white-space:pre-wrap;font-size:13px;line-height:1.7}
+  .comment-card{margin-top:16px;padding:18px 20px}
+  .comment-card .who{font-size:12px;color:var(--sub-text);margin-bottom:8px}
+  .comment-card.claude{border-left:3px solid var(--verified)}
+  .empty-note{color:var(--sub-text);font-size:13px}
+</style>
+</head>
+<body>
+<div style="background:#17233C;color:#fff;font-size:12px;font-weight:600;text-align:center;padding:6px 10px" class="demo-banner">TRAVIA UI 静的デモ &mdash; GitHub公開APIを直接参照しています(認証不要・書き込みなし)</div>
+<div class="app-shell">
+  <aside class="side">
+    <a class="logo"><i>T</i>TRAVIA</a>
+    <nav>
+      <a href="home.html">⌂ ホーム</a>
+      <a href="request.html">✦ 旅程をリクエスト</a>
+      <a class="active" href="status.html">◈ ステータス確認</a>
+    </nav>
+  </aside>
+  <div class="main">
+    <div class="topbar"><div class="search">⌕ 検索</div><div class="spacer"></div><div class="avatar">U</div></div>
+    <div class="content">
+      <div class="page-head"><h1>ステータス確認</h1><p>GitHub Issueの内容とClaudeからの返信をそのまま表示します(このページはGitHubの公開APIを読み取るだけです)。</p></div>
+
+      <div class="stat-wrap">
+        <div class="lookup">
+          <input id="issue-input" type="number" min="1" placeholder="Issue番号を入力(例: 123)">
+          <button class="btn btn-primary" id="lookup-btn">確認する</button>
+        </div>
+
+        <div id="result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  const REPO = 'mako0120/llm-travel';
+  const params = new URLSearchParams(location.search);
+  const initial = params.get('issue');
+  if (initial) document.getElementById('issue-input').value = initial;
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  async function fetchJson(url) {
+    const response = await fetch(url, { headers: { 'Accept': 'application/vnd.github+json' } });
+    if (!response.ok) throw new Error('GitHub API error: ' + response.status);
+    return response.json();
+  }
+
+  async function load(issueNumber) {
+    const result = document.getElementById('result');
+    result.innerHTML = '<p class="empty-note">読み込み中…</p>';
+    try {
+      const issue = await fetchJson('https://api.github.com/repos/' + REPO + '/issues/' + encodeURIComponent(issueNumber));
+      const comments = await fetchJson(issue.comments_url);
+      const claudeComment = comments.slice().reverse().find(function (c) {
+        return /##\s*TRAVIA自動旅程案/.test(c.body || '');
+      });
+
+      let html = '';
+      html += '<div class="card" style="padding:20px 22px">';
+      html += '<div class="page-head" style="margin-bottom:10px"><h1 style="font-size:17px">' + esc(issue.title) + '</h1>';
+      html += '<p>Issue #' + esc(issue.number) + ' ・ <span class="status ' + (issue.state === 'open' ? 'researching' : 'verified') + '">' + esc(issue.state) + '</span></p></div>';
+      html += '<div class="issue-body">' + esc(issue.body || '') + '</div>';
+      html += '</div>';
+
+      if (claudeComment) {
+        html += '<div class="card comment-card claude">';
+        html += '<div class="who">Claudeからの回答 ・ ' + esc(new Date(claudeComment.created_at).toLocaleString('ja-JP')) + '</div>';
+        html += '<div class="issue-body">' + esc(claudeComment.body) + '</div>';
+        html += '</div>';
+      } else {
+        html += '<div class="card comment-card" style="border-left:3px solid var(--researching)">';
+        html += '<div class="who">まだClaudeからの回答はありません</div>';
+        html += '<p class="empty-note">定期的にIssueを確認して自動返信します。数分〜1時間ほどお待ちください。このページを再度開くと最新状況を確認できます。</p>';
+        html += '</div>';
+      }
+      result.innerHTML = html;
+    } catch (error) {
+      result.innerHTML = '<div class="card comment-card" style="border-left:3px solid var(--warning)"><b>取得に失敗しました</b><p class="empty-note">' + esc(error.message) + '</p></div>';
+    }
+  }
+
+  document.getElementById('lookup-btn').addEventListener('click', function () {
+    const n = document.getElementById('issue-input').value.trim();
+    if (!n) return;
+    history.replaceState(null, '', 'status.html?issue=' + encodeURIComponent(n));
+    load(n);
+  });
+
+  if (initial) load(initial);
+</script>
+</body>
+</html>

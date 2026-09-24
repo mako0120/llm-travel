@@ -140,6 +140,61 @@ class RepositoryTests(unittest.TestCase):
         )
         self.assertEqual(rule["evidence"], {"evidence_type": "qualitative_comment_only", "feedback_ids": [feedback["id"]]})
 
+    def test_claim_research_run_is_atomic_and_single_use(self):
+        run = self.repo.create_research_run("solo-operator", {"destination": "Kyoto"}, [])
+        self.assertTrue(self.repo.claim_research_run(run["id"]))
+        self.assertEqual(self.repo.get_research_run(run["id"])["state"], "researching")
+        # A second, overlapping claim attempt (e.g. a second worker instance) must fail.
+        self.assertFalse(self.repo.claim_research_run(run["id"]))
+
+    def test_claim_research_run_rejects_a_run_that_is_already_past_requested(self):
+        run = self.repo.create_research_run("solo-operator", {"destination": "Kyoto"}, [])
+        self.repo.record_evidence(run["id"], {"agent": "human", "source_type": "manual", "url": "https://example.test",
+            "title": "t", "facts": {}, "retrieved_at": "2030-01-01T00:00:00Z", "expires_at": "2030-01-02T00:00:00Z",
+            "verification_status": "unverified"})
+        self.assertFalse(self.repo.claim_research_run(run["id"]))
+
+    def test_list_research_runs_filters_by_state(self):
+        requested = self.repo.create_research_run("solo-operator", {"destination": "Kyoto"}, [])
+        self.repo.create_research_run("solo-operator", {"destination": "Osaka"}, [])
+        self.repo.claim_research_run(requested["id"])
+        remaining = self.repo.list_research_runs(state="requested")
+        self.assertEqual(len(remaining), 1)
+        self.assertEqual(remaining[0]["requirements"]["destination"], "Osaka")
+
+
+    def test_auto_worker_results_are_bounded_and_latest(self):
+        run = self.repo.create_research_run("solo-operator", {"destination": "Kyoto"}, [])
+        self.assertIsNone(self.repo.latest_auto_worker_result(run["id"]))
+        first = self.repo.record_auto_worker_result(run["id"], {
+            "outcome": "unresolved",
+            "reason": "needs more evidence",
+            "missing_evidence": ["営業時間"],
+            "evidence_collected": 2,
+            "proposal": "must never be persisted for UI",
+        })
+        self.assertEqual(first["missing_evidence"], ["営業時間"])
+        self.assertNotIn("proposal", first)
+        second = self.repo.record_auto_worker_result(run["id"], {
+            "outcome": "reviewed_not_saved",
+            "reason": "reviewed but unverified",
+            "evidence_collected": 3,
+        })
+        latest = self.repo.latest_auto_worker_result(run["id"])
+        self.assertEqual(latest["id"], second["id"])
+        self.assertEqual(latest["outcome"], "reviewed_not_saved")
+        self.assertEqual(latest["missing_evidence"], [])
+        self.assertNotIn("proposal", latest)
+
+    def test_auto_worker_result_rejects_invalid_status_payloads(self):
+        run = self.repo.create_research_run("solo-operator", {"destination": "Kyoto"}, [])
+        with self.assertRaises(ValueError):
+            self.repo.record_auto_worker_result(run["id"], {"outcome": "approved", "reason": "bad"})
+        with self.assertRaises(ValueError):
+            self.repo.record_auto_worker_result(run["id"], {
+                "outcome": "unresolved", "reason": "bad", "missing_evidence": ["ok", 3],
+            })
+
 
 if __name__ == "__main__":
     unittest.main()

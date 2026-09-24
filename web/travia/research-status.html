@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>自動調査の状況 | TRAVIA</title>
+<link rel="stylesheet" href="travia.css">
+<style>
+  .state-card{padding:20px 22px;margin-bottom:16px}
+  .state-card .head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .state-card p{margin:0;font-size:13px;color:var(--sub-text)}
+  .missing-list{margin:10px 0 0;padding-left:18px;font-size:13px}
+  .log-list{display:flex;flex-direction:column;gap:0}
+  .log-row{display:flex;gap:14px;padding:11px 0;border-bottom:1px solid var(--border);font-size:13px}
+  .log-row:last-child{border-bottom:0}
+  .log-row .t{color:var(--sub-text);width:56px;flex:0 0 auto}
+  .note-box{background:var(--tint-blue);border-radius:var(--radius);padding:14px 18px;font-size:12px;color:var(--primary);margin-top:20px}
+</style>
+</head>
+<body>
+<div style="background:#17233C;color:#fff;font-size:12px;font-weight:600;text-align:center;padding:6px 10px" class="demo-banner">TRAVIA UI 静的デモ &mdash; バックエンド未接続・保存機能なし(画面イメージの確認用)</div>
+<div class="app-shell">
+  <aside class="side">
+    <a class="logo"><i>T</i>TRAVIA</a>
+    <button class="new-trip">＋ 新しい旅行をつくる</button>
+    <nav>
+      <a href="home.html">⌂ ホーム</a>
+      <a href="planner.html">✦ AI旅行プランナー</a>
+      <a class="active" href="itinerary.html">▤ 旅程を見る</a>
+      <a href="#">⌕ 情報収集</a>
+      <a href="double-check.html">◈ AIダブルチェック</a>
+      <a href="history.html">▥ 改善履歴</a>
+      <a href="public-list.html">♧ 公開プラン一覧</a>
+    </nav>
+    <div class="footer-nav"><a href="settings.html">⚙ 設定</a><a href="#">? ヘルプ</a></div>
+  </aside>
+  <div class="main">
+    <div class="topbar"><div class="search">⌕ 検索</div><div class="spacer"></div><div class="avatar">U</div></div>
+    <div class="content" style="max-width:800px">
+      <div class="page-head"><h1>自動調査の状況</h1><p>京都 ゆったり2泊3日 ・ 1日目</p></div>
+
+      <div class="card state-card" style="border-left:3px solid var(--verified)">
+        <div class="head"><span class="status verified">✓ レビュー完了・未保存</span></div>
+        <p>AIレビューは通過しましたが、未検証情報が含まれるため確定旅程として保存していません。公式出典での確認が完了すると、詳細旅程に反映されます。</p>
+      </div>
+
+      <div class="card state-card" style="border-left:3px solid var(--researching)">
+        <div class="head"><span class="status researching">◌ 追加調査が必要</span></div>
+        <p>次の情報が不足しています:</p>
+        <ul class="missing-list">
+          <li>清水寺 公式営業時間</li>
+          <li>京都市バス 正式運賃</li>
+          <li>レストラン営業日</li>
+        </ul>
+      </div>
+
+      <div class="card state-card" style="border-left:3px solid var(--border);opacity:.7">
+        <div class="head"><span class="tag" style="background:var(--bg);color:var(--sub-text)">処理対象外</span></div>
+        <p>行き先が未指定、または既に別の処理で確定済みのため対象外です。</p>
+      </div>
+
+      <div class="page-head" style="margin-top:8px"><h1 style="font-size:15px">実行履歴</h1></div>
+      <div class="card" style="padding:8px 22px">
+        <div class="log-list">
+          <div class="log-row"><span class="t">14:10</span><span>自動調査開始</span></div>
+          <div class="log-row"><span class="t">14:15</span><span>情報収集完了(6件の候補を確認)</span></div>
+          <div class="log-row"><span class="t">14:28</span><span>Codex提案 → Claude独立レビューを実行</span></div>
+          <div class="log-row"><span class="t">14:32</span><span>レビュー完了・未保存</span></div>
+        </div>
+      </div>
+
+      <div class="note-box">
+        ℹ Web画面から自動調査ワーカーを起動することはできません。実行は操作者本人がローカル環境で行い、結果だけがここに反映されます。
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

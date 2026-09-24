@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>情報の確認状況 | TRAVIA</title>
+<link rel="stylesheet" href="travia.css">
+</head>
+<body>
+<div style="background:#17233C;color:#fff;font-size:12px;font-weight:600;text-align:center;padding:6px 10px" class="demo-banner">TRAVIA UI 静的デモ &mdash; バックエンド未接続・保存機能なし(画面イメージの確認用)</div>
+<div class="app-shell">
+  <aside class="side">
+    <a class="logo"><i>T</i>TRAVIA</a>
+    <button class="new-trip">＋ 新しい旅行をつくる</button>
+    <nav>
+      <a href="home.html">⌂ ホーム</a>
+      <a href="planner.html">✦ AI旅行プランナー</a>
+      <a href="itinerary.html">▤ 旅程を見る</a>
+      <a href="#">⌕ 情報収集</a>
+      <a class="active" href="double-check.html">◈ AIダブルチェック</a>
+      <a href="history.html">▥ 改善履歴</a>
+      <a href="public-list.html">♧ 公開プラン一覧</a>
+    </nav>
+    <div class="footer-nav"><a href="settings.html">⚙ 設定</a><a href="#">? ヘルプ</a></div>
+  </aside>
+  <div class="main">
+    <div class="topbar"><div class="search">⌕ 検索</div><div class="spacer"></div><div class="avatar">U</div></div>
+    <div class="content">
+      <div class="page-head"><h1>情報の確認状況</h1></div>
+
+      <div class="grid-3" style="margin-bottom:22px">
+        <div class="card stat-tile" style="text-align:center"><span class="n" style="color:var(--verified)">18件</span><span class="l">確認済み</span></div>
+        <div class="card stat-tile" style="text-align:center"><span class="n" style="color:var(--researching)">3件</span><span class="l">確認中</span></div>
+        <div class="card stat-tile" style="text-align:center"><span class="n" style="color:var(--warning)">1件</span><span class="l">再確認が必要</span></div>
+      </div>
+
+      <div class="card" style="overflow:hidden">
+        <table class="data-table">
+          <thead><tr><th>カテゴリ</th><th>内容</th><th>ステータス</th><th>情報源</th><th>確認日時</th><th>有効期限</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>名所</td><td>清水寺 拝観料・営業時間</td><td><span class="status verified">✓ 確認済み</span></td><td>公式サイト</td><td>2026/09/19 10:20</td><td>2026/10/19</td><td><a class="alt-link" style="color:var(--primary);font-weight:700;font-size:12px">詳細</a></td></tr>
+            <tr><td>名所</td><td>伏見稲荷大社 概要</td><td><span class="status verified">✓ 確認済み</span></td><td>Wikimedia</td><td>2026/09/19 10:22</td><td>2026/10/19</td><td><a class="alt-link" style="color:var(--primary);font-weight:700;font-size:12px">詳細</a></td></tr>
+            <tr><td>交通</td><td>京都市バス 運賃</td><td><span class="status researching">◌ 確認中</span></td><td>公式交通データ(調査中)</td><td>—</td><td>—</td><td><a class="alt-link" style="color:var(--primary);font-weight:700;font-size:12px">詳細</a></td></tr>
+            <tr><td>グルメ</td><td>祇園レストラン 営業日</td><td><span class="status warning">△ 再確認必要</span></td><td>Google Places</td><td>2026/08/02 09:00</td><td>2026/09/02(期限切れ)</td><td><a class="alt-link" style="color:var(--primary);font-weight:700;font-size:12px">詳細</a></td></tr>
+            <tr><td>天気</td><td>11/15 京都の天気予報</td><td><span class="status verified">✓ 確認済み</span></td><td>気象庁 / Open-Meteo</td><td>2026/09/19 06:00</td><td>2026/09/20</td><td><a class="alt-link" style="color:var(--primary);font-weight:700;font-size:12px">詳細</a></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

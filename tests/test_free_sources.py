@@ -1,0 +1,80 @@
+from datetime import datetime, timezone
+import unittest
+
+from travel.free_sources import NominatimAdapter, NominatimRateLimiter, OpenMeteoAdapter, WikimediaAdapter, collect_public_evidence, public_result_evidence, public_source_catalog
+from travel.providers import ProviderResult
+
+
+NOW = datetime(2030, 1, 1, tzinfo=timezone.utc)
+
+
+class FreeSourcesTests(unittest.TestCase):
+    def test_catalog_marks_only_no_key_sources_available(self):
+        entries = {entry.id: entry for entry in public_source_catalog()}
+        self.assertEqual(entries["nominatim"].state, "available_no_key")
+        self.assertEqual(entries["open_meteo"].state, "available_no_key")
+        self.assertEqual(entries["open_meteo"].commercial_use, "commercial_subscription_required")
+        self.assertIn("1 request/second", entries["nominatim"].constraint)
+        self.assertEqual(entries["official_gtfs"].state, "feed_selection_required")
+
+    def test_nominatim_uses_one_bounded_user_query(self):
+        called = []
+        adapter = NominatimAdapter(lambda url: called.append(url) or [{"display_name": "京都", "osm_type": "relation", "osm_id": 1, "lat": "1", "lon": "2"}])
+        result = adapter.search_destination("京都")
+        self.assertEqual(result.state, "available")
+        self.assertEqual(len(called), 1)
+        self.assertIn("limit=1", called[0])
+        self.assertIn("q=%E4%BA%AC%E9%83%BD", called[0])
+
+    def test_nominatim_rate_limiter_enforces_one_request_per_second(self):
+        moments = iter((0.0, 0.25))
+        sleeps = []
+        limiter = NominatimRateLimiter(clock=lambda: next(moments), sleeper=sleeps.append)
+        adapter = NominatimAdapter(lambda _url: [], limiter)
+        adapter.search_destination("京都")
+        adapter.search_destination("大阪")
+        self.assertEqual(sleeps, [0.75])
+
+    def test_wikimedia_and_nominatim_results_remain_unverified(self):
+        wiki = WikimediaAdapter(lambda _url: {"pages": [{"title": "京都", "key": "京都", "description": "都市"}]})
+        evidence = public_result_evidence(wiki.search_destination("京都"), NOW)
+        self.assertEqual(evidence[0]["verification_status"], "unverified")
+        self.assertIn("Wikimedia", evidence[0]["source_type"])
+        geo = ProviderResult("available", [{"display_name": "京都", "osm_type": "relation", "osm_id": 1, "lat": "1", "lon": "2"}], "nominatim", "v1")
+        self.assertEqual(public_result_evidence(geo, NOW)[0]["verification_status"], "unverified")
+
+    def test_invalid_or_failed_results_do_not_create_evidence(self):
+        self.assertEqual(public_result_evidence(ProviderResult("unavailable", provider="nominatim"), NOW), [])
+        self.assertEqual(NominatimAdapter(lambda _url: {}).search_destination("京都").state, "invalid")
+        with self.assertRaises(ValueError):
+            WikimediaAdapter(lambda _url: {}).search_destination("京都", 11)
+
+    def test_open_meteo_is_bounded_and_remains_a_forecast_candidate(self):
+        called = []
+        adapter = OpenMeteoAdapter(lambda url: called.append(url) or {
+            "timezone": "Asia/Tokyo", "hourly": {"time": []},
+            "daily": {"time": ["2030-01-01"], "temperature_2m_max": [12.5],
+                      "temperature_2m_min": [3.5], "precipitation_probability_max": [40]},
+        })
+        result = adapter.forecast(35.0, 135.0)
+        self.assertEqual(result.state, "available")
+        self.assertIn("forecast_days=7", called[0])
+        self.assertIn("daily=weather_code%2Ctemperature_2m_max", called[0])
+        evidence = public_result_evidence(result, NOW)
+        self.assertEqual(evidence[0]["verification_status"], "unverified")
+        self.assertIn("Forecast", evidence[0]["source_type"])
+        self.assertEqual(evidence[0]["facts"]["daily_forecasts"][0], {
+            "date": "2030-01-01", "temperature_max_c": 12.5,
+            "temperature_min_c": 3.5, "precipitation_probability_max": 40,
+        })
+        self.assertIn("自動採用しません", evidence[0]["facts"]["forecast_notice"])
+
+    def test_collection_uses_one_scoped_discovery_query(self):
+        calls = []
+        geo = NominatimAdapter(lambda _url: [{"display_name": "京都", "osm_type": "relation", "osm_id": 1, "lat": "35", "lon": "135"}])
+        wiki = WikimediaAdapter(lambda url: calls.append(url) or {"pages": []})
+        weather = OpenMeteoAdapter(lambda _url: {"timezone": "Asia/Tokyo", "hourly": {"time": []}})
+        _, evidence = collect_public_evidence("京都", nominatim=geo, wikimedia=wiki, open_meteo=weather)
+        self.assertEqual(len(calls), 1)
+        self.assertIn("%E8%A6%B3%E5%85%89%E5%90%8D%E6%89%80", calls[0])
+        self.assertTrue(all(item["verification_status"] == "unverified" for item in evidence))

@@ -67,15 +67,15 @@ def provider_catalog():
         ),
         ProviderCapability(
             "tiktok", "TikTok official APIs", "approval_required",
-            ("discovery links and trend candidates"),
+            ("discovery links and trend candidates",),
             ("approved TikTok product and scope", "user authorization where required"),
             "https://developers.tiktok.com/doc/",
             "Discovery content cannot establish opening hours, prices, availability, or timetable facts.",
         ),
         ProviderCapability(
             "tabelog", "食べログ", "official_connection_required",
-            ("restaurant candidate references"),
-            ("a documented, permitted official or licensed connection"),
+            ("restaurant candidate references",),
+            ("a documented, permitted official or licensed connection",),
             "https://tabelog.com/",
             "Do not scrape or automate access. Keep unconfigured until a permitted connection is documented.",
         ),

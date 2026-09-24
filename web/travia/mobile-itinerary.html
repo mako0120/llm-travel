@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>京都2泊3日 | TRAVIA</title>
+<link rel="stylesheet" href="travia.css">
+<style>
+  body{max-width:430px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
+  .m-topbar{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border);position:sticky;top:0;background:#fff;z-index:5}
+  .m-topbar b{font-size:15px}
+  .m-content{padding:14px 16px;flex:1;padding-bottom:90px}
+  .m-day-tabs{display:flex;gap:8px;margin-bottom:14px}
+  .m-day-tabs button{flex:1;padding:9px;border-radius:10px;border:1px solid var(--border);background:#fff;font-size:12px;font-weight:700;color:var(--sub-text)}
+  .m-day-tabs button.active{background:var(--primary);border-color:var(--primary);color:#fff}
+  .m-timeline{position:relative;padding-left:20px}
+  .m-timeline::before{content:"";position:absolute;left:5px;top:6px;bottom:6px;width:2px;background:var(--border)}
+  .m-item{position:relative;padding-bottom:16px}
+  .m-item::before{content:"";position:absolute;left:-20px;top:2px;width:12px;height:12px;border-radius:50%;background:var(--primary);border:2px solid #fff;box-shadow:0 0 0 1px var(--border)}
+  .m-card{padding:0;overflow:hidden;display:flex}
+  .m-card .photo{width:88px;flex:0 0 auto;border-radius:0}
+  .m-card .body{padding:10px 12px;flex:1;min-width:0}
+  .m-card .time{font-size:11px;color:var(--sub-text);font-weight:700}
+  .m-card b{font-size:13px;display:block;margin:2px 0}
+  .m-card .row{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--sub-text)}
+</style>
+</head>
+<body>
+<div style="background:#17233C;color:#fff;font-size:12px;font-weight:600;text-align:center;padding:6px 10px" class="demo-banner">TRAVIA UI 静的デモ &mdash; バックエンド未接続・保存機能なし(画面イメージの確認用)</div>
+<div class="m-topbar"><span>←</span><b>京都2泊3日</b></div>
+<div class="m-content">
+  <div class="m-day-tabs">
+    <button class="active">1日目</button>
+    <button>2日目</button>
+    <button>3日目</button>
+  </div>
+
+  <div class="m-timeline">
+    <div class="m-item"><div class="card m-card"><div class="photo"><span></span></div><div class="body"><div class="time">08:30</div><b>京都駅</b><div class="row"><span>集合</span><span class="status verified">✓</span></div></div></div></div>
+    <div class="m-item"><div class="card m-card"><div class="photo"><span></span></div><div class="body"><div class="time">09:00</div><b>東本願寺</b><div class="row"><span>徒歩12分・¥0</span><span class="status verified">✓</span></div></div></div></div>
+    <div class="m-item"><div class="card m-card"><div class="photo alt-2"><span></span></div><div class="body"><div class="time">10:30</div><b>清水寺</b><div class="row"><span>バス20分・¥400</span><span class="status verified">✓</span></div></div></div></div>
+    <div class="m-item"><div class="card m-card"><div class="photo alt-1"><span></span></div><div class="body"><div class="time">12:00</div><b>二寧坂・三年坂</b><div class="row"><span>徒歩6分・¥1,800</span><span class="status researching">◌</span></div></div></div></div>
+    <div class="m-item"><div class="card m-card"><div class="photo alt-3"><span></span></div><div class="body"><div class="time">14:00</div><b>伏見稲荷大社</b><div class="row"><span>電車25分・¥0</span><span class="status verified">✓</span></div></div></div></div>
+    <div class="m-item"><div class="card m-card"><div class="photo"><span></span></div><div class="body"><div class="time">16:00</div><b>錦市場</b><div class="row"><span>電車15分・¥1,200</span><span class="status warning">△</span></div></div></div></div>
+    <div class="m-item"><div class="card m-card"><div class="photo alt-2"><span></span></div><div class="body"><div class="time">18:00</div><b>先斗町エリア</b><div class="row"><span>徒歩10分・¥5,000</span><span class="status researching">◌</span></div></div></div></div>
+  </div>
+</div>
+
+<nav class="bottom-nav">
+  <a href="home.html">⌂<span>ホーム</span></a>
+  <a href="public-list.html">⌕<span>探す</span></a>
+  <a class="fab" href="planner.html">＋</a>
+  <a href="#">♡<span>保存</span></a>
+  <a class="active" href="mobile-itinerary.html">▤<span>マイトリップ</span></a>
+</nav>
+</body>
+</html>

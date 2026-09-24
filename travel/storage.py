@@ -38,6 +38,41 @@ def _timestamp(value):
     return parsed
 
 
+def validate_evidence_payload(evidence):
+    """Return canonical evidence using the same rules used by Repository storage.
+
+    It is side-effect free so agent handoffs can reject malformed input before
+    it reaches an LLM prompt. Unknown fields intentionally do not propagate.
+    """
+    if not isinstance(evidence, dict):
+        raise ValueError("evidence must be an object")
+    agent = evidence.get("agent")
+    if agent not in ("claude", "codex", "human", "provider"):
+        raise ValueError("agent must identify the independent evidence producer")
+    for key in ("source_type", "url", "title"):
+        if not isinstance(evidence.get(key), str) or not evidence[key].strip():
+            raise ValueError(f"{key} must be a nonempty string")
+    if not isinstance(evidence.get("facts"), dict):
+        raise ValueError("facts must be an object")
+    retrieved_at = _timestamp(evidence.get("retrieved_at"))
+    expires_at = _timestamp(evidence.get("expires_at"))
+    if expires_at <= retrieved_at:
+        raise ValueError("expires_at must follow retrieved_at")
+    status = evidence.get("verification_status")
+    if status not in ("verified", "unverified"):
+        raise ValueError("verification_status must be verified or unverified")
+    return {
+        "agent": agent,
+        "source_type": evidence["source_type"].strip(),
+        "url": evidence["url"].strip(),
+        "title": evidence["title"].strip(),
+        "facts": json.loads(_json(evidence["facts"])),
+        "retrieved_at": retrieved_at.isoformat(),
+        "expires_at": expires_at.isoformat(),
+        "verification_status": status,
+    }
+
+
 def _exact(left, right):
     if type(left) is not type(right):
         return False
@@ -119,6 +154,16 @@ class Repository:
                     created_at TEXT NOT NULL,
                     completed_at TEXT
                 );
+                CREATE TABLE IF NOT EXISTS auto_worker_results (
+                    id TEXT PRIMARY KEY,
+                    run_id TEXT NOT NULL,
+                    outcome TEXT NOT NULL CHECK(outcome IN ('skipped', 'unresolved', 'reviewed_not_saved')),
+                    document TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(run_id) REFERENCES research_runs(id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_auto_worker_results_run_created
+                    ON auto_worker_results(run_id, created_at DESC, id DESC);
                 CREATE TABLE IF NOT EXISTS research_evidence (
                     id TEXT PRIMARY KEY,
                     run_id TEXT NOT NULL,
@@ -139,6 +184,31 @@ class Repository:
                     document TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     FOREIGN KEY(run_id) REFERENCES research_runs(id)
+                );
+                CREATE TABLE IF NOT EXISTS itinerary_improvements (
+                    after_itinerary_id TEXT PRIMARY KEY,
+                    before_itinerary_id TEXT NOT NULL,
+                    summary TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(after_itinerary_id) REFERENCES itinerary_proposals(id),
+                    FOREIGN KEY(before_itinerary_id) REFERENCES itinerary_proposals(id)
+                );
+                CREATE TABLE IF NOT EXISTS published_itineraries (
+                    slug TEXT PRIMARY KEY,
+                    itinerary_id TEXT NOT NULL UNIQUE,
+                    title TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(itinerary_id) REFERENCES itinerary_proposals(id)
+                );
+                CREATE TABLE IF NOT EXISTS public_itinerary_feedback (
+                    id TEXT PRIMARY KEY,
+                    slug TEXT NOT NULL,
+                    rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),
+                    comment TEXT NOT NULL,
+                    status TEXT NOT NULL CHECK(status IN ('pending', 'approved')),
+                    created_at TEXT NOT NULL,
+                    approved_at TEXT,
+                    FOREIGN KEY(slug) REFERENCES published_itineraries(slug)
                 );
                 CREATE TABLE IF NOT EXISTS preference_signals (
                     id TEXT PRIMARY KEY,
@@ -337,30 +407,91 @@ class Repository:
                                      (record["id"], profile_id, _json(requirements), _json(source_targets), "requested", record["created_at"], None))
         return record
 
+    def claim_research_run(self, run_id):
+        """Atomically move one run from 'requested' to 'researching'.
+
+        Returns True only if this call performed the transition, so two
+        overlapping workers (or a worker racing a web request) cannot both
+        claim and process the same run.
+        """
+        _identifier(run_id)
+        with self._lock, self._connection:
+            self._connection.execute("BEGIN IMMEDIATE")
+            cursor = self._connection.execute(
+                "UPDATE research_runs SET state = 'researching' WHERE id = ? AND state = 'requested'", (run_id,))
+            return cursor.rowcount == 1
+
+    def list_research_runs(self, state=None):
+        """List research run ids and requirements, optionally filtered by state."""
+        if state is not None and state not in ("requested", "researching", "ready", "failed", "unconfigured"):
+            raise ValueError("state is invalid")
+        with self._lock:
+            if state is None:
+                rows = self._connection.execute("SELECT * FROM research_runs ORDER BY created_at, id").fetchall()
+            else:
+                rows = self._connection.execute(
+                    "SELECT * FROM research_runs WHERE state = ? ORDER BY created_at, id", (state,)
+                ).fetchall()
+        return [dict(dict(row), requirements=json.loads(row["requirements"]), source_targets=json.loads(row["source_targets"])) for row in rows]
+
+    def record_auto_worker_result(self, run_id, summary):
+        """Persist a bounded, display-safe summary of one worker attempt."""
+        _identifier(run_id)
+        if not isinstance(summary, dict):
+            raise ValueError("auto worker result must be an object")
+        outcome = summary.get("outcome")
+        if outcome not in ("skipped", "unresolved", "reviewed_not_saved"):
+            raise ValueError("auto worker outcome is invalid")
+        reason = summary.get("reason")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("auto worker result requires a reason")
+        safe = {"outcome": outcome, "reason": reason.strip()}
+        for key in ("missing_evidence", "required_evidence"):
+            value = summary.get(key, [])
+            if not isinstance(value, list) or any(not isinstance(item, str) or not item.strip() for item in value):
+                raise ValueError(f"{key} must be a list of nonempty strings")
+            safe[key] = [item.strip() for item in value]
+        evidence_collected = summary.get("evidence_collected")
+        if evidence_collected is not None:
+            if type(evidence_collected) is not int or evidence_collected < 0:
+                raise ValueError("evidence_collected must be a nonnegative integer")
+            safe["evidence_collected"] = evidence_collected
+        for key in ("codex_executed_at", "claude_executed_at"):
+            value = summary.get(key)
+            if value is not None:
+                safe[key] = _timestamp(value).isoformat()
+        record = {"id": str(uuid4()), "run_id": run_id, **safe, "created_at": _now()}
+        with self._lock, self._connection:
+            exists = self._connection.execute("SELECT 1 FROM research_runs WHERE id = ?", (run_id,)).fetchone()
+            if exists is None:
+                raise ValueError("research run does not exist")
+            self._connection.execute(
+                "INSERT INTO auto_worker_results(id, run_id, outcome, document, created_at) VALUES (?, ?, ?, ?, ?)",
+                (record["id"], run_id, outcome, _json(safe), record["created_at"]),
+            )
+        return record
+
+    def latest_auto_worker_result(self, run_id):
+        """Return the newest display-safe worker result for a research run."""
+        _identifier(run_id)
+        with self._lock:
+            exists = self._connection.execute("SELECT 1 FROM research_runs WHERE id = ?", (run_id,)).fetchone()
+            if exists is None:
+                raise ValueError("research run does not exist")
+            row = self._connection.execute(
+                "SELECT * FROM auto_worker_results WHERE run_id = ? ORDER BY created_at DESC, id DESC LIMIT 1",
+                (run_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return {"id": row["id"], "run_id": row["run_id"], **json.loads(row["document"]), "created_at": row["created_at"]}
+
     def record_evidence(self, run_id, evidence):
         """Persist supplied research evidence with provenance; do not assert its truth."""
         _identifier(run_id)
-        if not isinstance(evidence, dict):
-            raise ValueError("evidence must be an object")
-        agent = evidence.get("agent")
-        if agent not in ("claude", "codex", "human", "provider"):
-            raise ValueError("agent must identify the independent evidence producer")
-        for key in ("source_type", "url", "title"):
-            if not isinstance(evidence.get(key), str) or not evidence[key].strip():
-                raise ValueError(f"{key} must be a nonempty string")
-        if not isinstance(evidence.get("facts"), dict):
-            raise ValueError("facts must be an object")
-        retrieved_at = _timestamp(evidence.get("retrieved_at"))
-        expires_at = _timestamp(evidence.get("expires_at"))
-        if expires_at <= retrieved_at:
-            raise ValueError("expires_at must follow retrieved_at")
-        status = evidence.get("verification_status")
-        if status not in ("verified", "unverified"):
-            raise ValueError("verification_status must be verified or unverified")
-        canonical = _json({key: evidence[key] for key in ("source_type", "url", "title", "facts", "retrieved_at", "expires_at", "verification_status")})
-        record = {"id": str(uuid4()), "run_id": run_id, "agent": agent, "source_type": evidence["source_type"],
-                  "url": evidence["url"], "title": evidence["title"], "facts": json.loads(_json(evidence["facts"])),
-                  "retrieved_at": retrieved_at.isoformat(), "expires_at": expires_at.isoformat(), "verification_status": status,
+        payload = validate_evidence_payload(evidence)
+        canonical = _json({key: payload[key] for key in ("source_type", "url", "title", "facts", "retrieved_at", "expires_at", "verification_status")})
+        record = {"id": str(uuid4()), "run_id": run_id, **payload,
                   "content_hash": hashlib.sha256(canonical.encode("utf-8")).hexdigest()}
         with self._lock, self._connection:
             run = self._connection.execute("SELECT state FROM research_runs WHERE id = ?", (run_id,)).fetchone()
@@ -371,7 +502,7 @@ class Repository:
             self._connection.execute("UPDATE research_runs SET state = 'researching' WHERE id = ?", (run_id,))
             self._connection.execute("INSERT INTO research_evidence VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                                      (record["id"], run_id, record["agent"], record["source_type"], record["url"], record["title"],
-                                      _json(record["facts"]), record["retrieved_at"], record["expires_at"], status, record["content_hash"]))
+                                      _json(record["facts"]), record["retrieved_at"], record["expires_at"], record["verification_status"], record["content_hash"]))
         return record
 
     def complete_research_run(self, run_id, state):
@@ -408,7 +539,7 @@ class Repository:
             return []
         return [item for item in run["evidence"] if item["verification_status"] == "verified" and _timestamp(item["expires_at"]) > now]
 
-    def record_itinerary_proposal(self, run_id, proposal):
+    def record_itinerary_proposal(self, run_id, proposal, before_itinerary_id=None, improvement_summary=None):
         """Store a reviewed itinerary only when every displayed option has fresh evidence."""
         _identifier(run_id)
         if not isinstance(proposal, dict):
@@ -427,10 +558,21 @@ class Repository:
         verified_ids = {item["id"] for item in self.fresh_verified_evidence(run_id)}
         if not cited_evidence_ids <= verified_ids:
             raise ValueError("every itinerary option needs fresh verified evidence from this research run")
+        if before_itinerary_id is not None:
+            _identifier(before_itinerary_id)
+            if not isinstance(improvement_summary, str) or not improvement_summary.strip() or len(improvement_summary) > 1600:
+                raise ValueError("an improvement summary of at most 1600 characters is required")
+            if self.get_itinerary_proposal(before_itinerary_id) is None:
+                raise ValueError("before itinerary does not exist")
+        elif improvement_summary is not None:
+            raise ValueError("improvement summary requires a before itinerary")
         record = dict(proposal, id=str(uuid4()), run_id=run_id, created_at=_now())
         with self._lock, self._connection:
             self._connection.execute("INSERT INTO itinerary_proposals VALUES (?, ?, ?, ?)",
                                      (record["id"], run_id, _json(record), record["created_at"]))
+            if before_itinerary_id is not None:
+                self._connection.execute("INSERT INTO itinerary_improvements VALUES (?, ?, ?, ?)",
+                                         (record["id"], before_itinerary_id, improvement_summary.strip(), _now()))
         return json.loads(_json(record))
 
     def latest_itinerary_proposal(self, run_id):
@@ -440,6 +582,88 @@ class Repository:
                 "SELECT document FROM itinerary_proposals WHERE run_id = ? ORDER BY created_at DESC, id DESC LIMIT 1", (run_id,)
             ).fetchone()
         return json.loads(row["document"]) if row else None
+
+    def get_itinerary_proposal(self, itinerary_id):
+        _identifier(itinerary_id)
+        with self._lock:
+            row = self._connection.execute("SELECT document FROM itinerary_proposals WHERE id = ?", (itinerary_id,)).fetchone()
+        return json.loads(row["document"]) if row else None
+
+    def publish_itinerary(self, itinerary_id, title, slug=None):
+        """Publish an immutable itinerary only after an explicit operator action."""
+        _identifier(itinerary_id)
+        if not isinstance(title, str) or not title.strip() or len(title) > 160:
+            raise ValueError("title must be 1 to 160 characters")
+        itinerary = self.get_itinerary_proposal(itinerary_id)
+        if itinerary is None:
+            raise ValueError("itinerary does not exist")
+        if slug is None:
+            slug = f"trip-{uuid4().hex[:12]}"
+        if not isinstance(slug, str) or not slug.startswith("trip-") or not slug[5:].isalnum() or len(slug) > 64:
+            raise ValueError("slug must be a trip-prefixed alphanumeric identifier")
+        record = {"slug": slug, "itinerary_id": itinerary_id, "title": title.strip(), "created_at": _now()}
+        with self._lock, self._connection:
+            existing = self._connection.execute("SELECT * FROM published_itineraries WHERE itinerary_id = ?", (itinerary_id,)).fetchone()
+            if existing is not None:
+                return dict(existing)
+            self._connection.execute("INSERT INTO published_itineraries VALUES (?, ?, ?, ?)", tuple(record.values()))
+        return record
+
+    def list_published_itineraries(self):
+        with self._lock:
+            rows = self._connection.execute("SELECT * FROM published_itineraries ORDER BY created_at DESC, slug DESC").fetchall()
+        return [dict(row) for row in rows]
+
+    def public_itinerary(self, slug):
+        _identifier(slug)
+        with self._lock:
+            published = self._connection.execute("SELECT * FROM published_itineraries WHERE slug = ?", (slug,)).fetchone()
+            if published is None:
+                return None
+            itinerary = self._connection.execute("SELECT document FROM itinerary_proposals WHERE id = ?", (published["itinerary_id"],)).fetchone()
+            improvement = self._connection.execute("SELECT * FROM itinerary_improvements WHERE after_itinerary_id = ?", (published["itinerary_id"],)).fetchone()
+            before = None
+            if improvement is not None:
+                row = self._connection.execute("SELECT document FROM itinerary_proposals WHERE id = ?", (improvement["before_itinerary_id"],)).fetchone()
+                before = json.loads(row["document"]) if row else None
+        return {"published": dict(published), "itinerary": json.loads(itinerary["document"]),
+                "comparison": None if improvement is None else {"before": before, "summary": improvement["summary"],
+                                                                  "created_at": improvement["created_at"]},
+                "community": self.public_feedback_summary(slug)}
+
+    def add_public_feedback(self, slug, rating, comment=""):
+        _identifier(slug)
+        if not isinstance(rating, int) or isinstance(rating, bool) or not 1 <= rating <= 5:
+            raise ValueError("rating must be an integer from 1 to 5")
+        if not isinstance(comment, str) or len(comment) > 500:
+            raise ValueError("comment must be text of at most 500 characters")
+        with self._lock:
+            if self._connection.execute("SELECT 1 FROM published_itineraries WHERE slug = ?", (slug,)).fetchone() is None:
+                raise ValueError("public itinerary does not exist")
+        record = {"id": str(uuid4()), "slug": slug, "rating": rating, "comment": comment.strip(), "status": "pending", "created_at": _now()}
+        with self._lock, self._connection:
+            self._connection.execute("INSERT INTO public_itinerary_feedback VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                     (*record.values(), None))
+        return record
+
+    def approve_public_feedback(self, feedback_id, approver_id):
+        _identifier(feedback_id); _identifier(approver_id)
+        with self._lock, self._connection:
+            row = self._connection.execute("SELECT * FROM public_itinerary_feedback WHERE id = ?", (feedback_id,)).fetchone()
+            if row is None:
+                raise ValueError("public feedback does not exist")
+            if row["status"] == "approved":
+                return dict(row)
+            approved_at = _now()
+            self._connection.execute("UPDATE public_itinerary_feedback SET status = 'approved', approved_at = ? WHERE id = ?", (approved_at, feedback_id))
+            return dict(self._connection.execute("SELECT * FROM public_itinerary_feedback WHERE id = ?", (feedback_id,)).fetchone())
+
+    def public_feedback_summary(self, slug):
+        _identifier(slug)
+        with self._lock:
+            row = self._connection.execute("SELECT COUNT(*) AS count, AVG(rating) AS average FROM public_itinerary_feedback WHERE slug = ? AND status = 'approved'", (slug,)).fetchone()
+        return {"approved_count": row["count"], "average_rating": None if row["average"] is None else round(row["average"], 1),
+                "note": "旅行者評価は参考情報です。改善ルールの自動採用や順位付けには使いません。"}
 
     def add_preference_signal(self, profile_id, preference_key, preference_value, weight, source_feedback_id=None):
         _identifier(profile_id)
